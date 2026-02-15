@@ -30,7 +30,9 @@ export interface ScriptItem {
   next_move_hint?: string;
   category_id?: string; // 動的カテゴリ
   is_quick_response: number; // Quick Responseに表示するか（0 or 1）
-  item_type: string; // 'base_scenario' or 'response_talk'
+  item_type: string; // 'main_scenario' or 'component'
+  target_situation_id?: string; // どの状況タブで表示するか
+  trigger_check_item_id?: string; // どのチェック項目がONになったら表示するか
   sort_order: number;
   created_at: number;
   updated_at: number;

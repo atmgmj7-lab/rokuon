@@ -222,6 +222,9 @@ export async function createItem(
   hearingPurpose?: string,
   strategyNote?: string,
   nextMoveHint?: string,
+  itemType: string = "component",
+  targetSituationId?: string,
+  triggerCheckItemId?: string,
   sortOrder: number = 0
 ) {
   try {
@@ -230,9 +233,24 @@ export async function createItem(
 
     await db.execute({
       sql: `INSERT INTO script_items 
-            (id, folder_id, title, hearing_purpose, content, strategy_note, next_move_hint, sort_order, created_at, updated_at) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      args: [id, folderId, title, hearingPurpose || "", content, strategyNote || "", nextMoveHint || "", sortOrder, now, now],
+            (id, folder_id, title, hearing_purpose, content, strategy_note, next_move_hint, 
+             item_type, target_situation_id, trigger_check_item_id, sort_order, created_at, updated_at) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        id,
+        folderId,
+        title,
+        hearingPurpose || "",
+        content,
+        strategyNote || "",
+        nextMoveHint || "",
+        itemType,
+        targetSituationId || null,
+        triggerCheckItemId || null,
+        sortOrder,
+        now,
+        now,
+      ],
     });
 
     revalidatePath("/workspace");
@@ -261,7 +279,9 @@ export async function getItemsByFolder(folderId: string): Promise<ScriptItem[]> 
       next_move_hint: row.next_move_hint as string,
       category_id: row.category_id as string,
       is_quick_response: (row.is_quick_response as number) || 0,
-      item_type: (row.item_type as string) || "base_scenario",
+      item_type: (row.item_type as string) || "main_scenario",
+      target_situation_id: row.target_situation_id as string,
+      trigger_check_item_id: row.trigger_check_item_id as string,
       sort_order: row.sort_order as number,
       created_at: row.created_at as number,
       updated_at: row.updated_at as number,
@@ -293,7 +313,9 @@ export async function getItemById(itemId: string): Promise<ScriptItem | null> {
       next_move_hint: row.next_move_hint as string,
       category_id: row.category_id as string,
       is_quick_response: (row.is_quick_response as number) || 0,
-      item_type: (row.item_type as string) || "base_scenario",
+      item_type: (row.item_type as string) || "main_scenario",
+      target_situation_id: row.target_situation_id as string,
+      trigger_check_item_id: row.trigger_check_item_id as string,
       sort_order: row.sort_order as number,
       created_at: row.created_at as number,
       updated_at: row.updated_at as number,
@@ -321,7 +343,9 @@ export async function getAllItems(): Promise<ScriptItem[]> {
       next_move_hint: row.next_move_hint as string,
       category_id: row.category_id as string,
       is_quick_response: (row.is_quick_response as number) || 0,
-      item_type: (row.item_type as string) || "base_scenario",
+      item_type: (row.item_type as string) || "main_scenario",
+      target_situation_id: row.target_situation_id as string,
+      trigger_check_item_id: row.trigger_check_item_id as string,
       sort_order: row.sort_order as number,
       created_at: row.created_at as number,
       updated_at: row.updated_at as number,
@@ -341,6 +365,9 @@ export async function updateItem(
   nextMoveHint?: string,
   categoryId?: string,
   isQuickResponse?: number,
+  itemType?: string,
+  targetSituationId?: string,
+  triggerCheckItemId?: string,
   sortOrder?: number
 ) {
   try {
@@ -349,7 +376,8 @@ export async function updateItem(
     await db.execute({
       sql: `UPDATE script_items 
             SET title = ?, hearing_purpose = ?, content = ?, strategy_note = ?, next_move_hint = ?, 
-                category_id = ?, is_quick_response = ?, sort_order = COALESCE(?, sort_order), updated_at = ? 
+                category_id = ?, is_quick_response = ?, item_type = ?, target_situation_id = ?, 
+                trigger_check_item_id = ?, sort_order = COALESCE(?, sort_order), updated_at = ? 
             WHERE id = ?`,
       args: [
         title,
@@ -359,6 +387,9 @@ export async function updateItem(
         nextMoveHint || "",
         categoryId || null,
         isQuickResponse !== undefined ? isQuickResponse : 0,
+        itemType || "component",
+        targetSituationId || null,
+        triggerCheckItemId || null,
         sortOrder !== undefined ? sortOrder : null,
         now,
         itemId,
@@ -633,7 +664,9 @@ export async function getTimelineBlocks(timelineId: string): Promise<ScriptItem[
       next_move_hint: row.next_move_hint as string,
       category_id: row.category_id as string,
       is_quick_response: (row.is_quick_response as number) || 0,
-      item_type: (row.item_type as string) || "base_scenario",
+      item_type: (row.item_type as string) || "main_scenario",
+      target_situation_id: row.target_situation_id as string,
+      trigger_check_item_id: row.trigger_check_item_id as string,
       sort_order: row.sort_order as number,
       created_at: row.created_at as number,
       updated_at: row.updated_at as number,
@@ -661,7 +694,9 @@ export async function getQuickResponseItems(): Promise<ScriptItem[]> {
       next_move_hint: row.next_move_hint as string,
       category_id: row.category_id as string,
       is_quick_response: (row.is_quick_response as number) || 0,
-      item_type: (row.item_type as string) || "base_scenario",
+      item_type: (row.item_type as string) || "main_scenario",
+      target_situation_id: row.target_situation_id as string,
+      trigger_check_item_id: row.trigger_check_item_id as string,
       sort_order: row.sort_order as number,
       created_at: row.created_at as number,
       updated_at: row.updated_at as number,
@@ -969,5 +1004,129 @@ export async function removeBlockFromTimeline(timelineId: string, scriptItemId: 
   } catch (error) {
     console.error("❌ ブロック削除エラー:", error);
     return { success: false, error: error instanceof Error ? error.message : "不明なエラー" };
+  }
+}
+
+// ========== 基本シナリオ・部品トーク取得 ==========
+
+// 基本シナリオ（main_scenario）のトークを取得
+export async function getMainScenarioItems(): Promise<ScriptItem[]> {
+  try {
+    const result = await db.execute(
+      "SELECT * FROM script_items WHERE item_type = 'main_scenario' ORDER BY sort_order ASC, created_at ASC"
+    );
+
+    return result.rows.map((row) => ({
+      id: row.id as string,
+      folder_id: row.folder_id as string,
+      title: row.title as string,
+      hearing_purpose: row.hearing_purpose as string,
+      content: row.content as string,
+      strategy_note: row.strategy_note as string,
+      next_move_hint: row.next_move_hint as string,
+      category_id: row.category_id as string,
+      is_quick_response: (row.is_quick_response as number) || 0,
+      item_type: (row.item_type as string) || "main_scenario",
+      target_situation_id: row.target_situation_id as string,
+      trigger_check_item_id: row.trigger_check_item_id as string,
+      sort_order: row.sort_order as number,
+      created_at: row.created_at as number,
+      updated_at: row.updated_at as number,
+    }));
+  } catch (error) {
+    console.error("❌ 基本シナリオ取得エラー:", error);
+    return [];
+  }
+}
+
+// 部品トーク（component）を取得
+export async function getComponentItems(): Promise<ScriptItem[]> {
+  try {
+    const result = await db.execute(
+      "SELECT * FROM script_items WHERE item_type = 'component' ORDER BY sort_order ASC, created_at ASC"
+    );
+
+    return result.rows.map((row) => ({
+      id: row.id as string,
+      folder_id: row.folder_id as string,
+      title: row.title as string,
+      hearing_purpose: row.hearing_purpose as string,
+      content: row.content as string,
+      strategy_note: row.strategy_note as string,
+      next_move_hint: row.next_move_hint as string,
+      category_id: row.category_id as string,
+      is_quick_response: (row.is_quick_response as number) || 0,
+      item_type: (row.item_type as string) || "component",
+      target_situation_id: row.target_situation_id as string,
+      trigger_check_item_id: row.trigger_check_item_id as string,
+      sort_order: row.sort_order as number,
+      created_at: row.created_at as number,
+      updated_at: row.updated_at as number,
+    }));
+  } catch (error) {
+    console.error("❌ 部品トーク取得エラー:", error);
+    return [];
+  }
+}
+
+// 特定の状況タグに紐づく部品トークを取得
+export async function getComponentsBySituation(situationId: string): Promise<ScriptItem[]> {
+  try {
+    const result = await db.execute({
+      sql: "SELECT * FROM script_items WHERE item_type = 'component' AND target_situation_id = ? ORDER BY sort_order ASC, created_at ASC",
+      args: [situationId],
+    });
+
+    return result.rows.map((row) => ({
+      id: row.id as string,
+      folder_id: row.folder_id as string,
+      title: row.title as string,
+      hearing_purpose: row.hearing_purpose as string,
+      content: row.content as string,
+      strategy_note: row.strategy_note as string,
+      next_move_hint: row.next_move_hint as string,
+      category_id: row.category_id as string,
+      is_quick_response: (row.is_quick_response as number) || 0,
+      item_type: (row.item_type as string) || "component",
+      target_situation_id: row.target_situation_id as string,
+      trigger_check_item_id: row.trigger_check_item_id as string,
+      sort_order: row.sort_order as number,
+      created_at: row.created_at as number,
+      updated_at: row.updated_at as number,
+    }));
+  } catch (error) {
+    console.error("❌ 状況別部品トーク取得エラー:", error);
+    return [];
+  }
+}
+
+// 特定のチェック項目に紐づく部品トークを取得
+export async function getComponentsByCheckItem(checkItemId: string): Promise<ScriptItem[]> {
+  try {
+    const result = await db.execute({
+      sql: "SELECT * FROM script_items WHERE item_type = 'component' AND trigger_check_item_id = ? ORDER BY sort_order ASC, created_at ASC",
+      args: [checkItemId],
+    });
+
+    return result.rows.map((row) => ({
+      id: row.id as string,
+      folder_id: row.folder_id as string,
+      title: row.title as string,
+      hearing_purpose: row.hearing_purpose as string,
+      content: row.content as string,
+      strategy_note: row.strategy_note as string,
+      next_move_hint: row.next_move_hint as string,
+      category_id: row.category_id as string,
+      is_quick_response: (row.is_quick_response as number) || 0,
+      item_type: (row.item_type as string) || "component",
+      target_situation_id: row.target_situation_id as string,
+      trigger_check_item_id: row.trigger_check_item_id as string,
+      sort_order: row.sort_order as number,
+      created_at: row.created_at as number,
+      updated_at: row.updated_at as number,
+    }));
+  } catch (error) {
+    console.error("❌ チェック項目別部品トーク取得エラー:", error);
+    return [];
   }
 }
