@@ -215,6 +215,22 @@ export async function deleteFolder(folderId: string) {
 
 // ========== トークアイテム操作 ==========
 
+export async function deleteItem(itemId: string) {
+  try {
+    await db.execute({
+      sql: "DELETE FROM script_items WHERE id = ?",
+      args: [itemId],
+    });
+
+    revalidatePath("/workspace");
+    revalidatePath("/call");
+    return { success: true };
+  } catch (error) {
+    console.error("❌ アイテム削除エラー:", error);
+    return { success: false, error: error instanceof Error ? error.message : "不明なエラー" };
+  }
+}
+
 export async function createItem(
   folderId: string,
   title: string,

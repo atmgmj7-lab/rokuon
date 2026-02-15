@@ -17,35 +17,43 @@ export default function Home() {
           <div className="flex gap-4 justify-center mb-8 flex-wrap">
             {/* メイン機能（推奨） */}
             <Link
-              href="/call-v3"
-              className="px-8 py-4 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white rounded-xl font-bold transition-colors shadow-xl hover:shadow-2xl animate-pulse ring-4 ring-orange-300 scale-110"
+              href="/call"
+              className="px-10 py-6 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white rounded-2xl font-bold text-lg transition-all shadow-2xl hover:shadow-3xl animate-pulse ring-4 ring-orange-300 transform hover:scale-105"
             >
-              📞 コール画面 🔥
+              📞 コール画面
             </Link>
             <Link
               href="/workspace"
-              className="px-8 py-4 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-xl font-bold transition-colors shadow-xl hover:shadow-2xl ring-4 ring-indigo-300 scale-110"
+              className="px-10 py-6 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-2xl font-bold text-lg transition-all shadow-2xl hover:shadow-3xl ring-4 ring-indigo-300 transform hover:scale-105"
             >
               🛠️ ワークスペース
             </Link>
-
-            {/* サブ機能 */}
-            <Link
-              href="/workspace-v2"
-              className="px-6 py-3 bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white rounded-lg font-medium transition-colors shadow-md hover:shadow-lg"
-            >
-              🔧 詳細設定（V2）
-            </Link>
-
           </div>
 
           {/* 説明 */}
           <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-lg p-6 mb-8">
             <h2 className="text-xl font-bold text-gray-800 mb-4">💡 使い方</h2>
-            <div className="space-y-3 text-sm text-gray-700">
-              <p><strong>🛠️ ワークスペース:</strong> 基本シナリオと部品トークを作成・編集します。状況タグやチェック項目への紐付けも設定できます。</p>
-              <p><strong>📞 コール画面:</strong> 実戦で使用します。基本シナリオから開始し、チェック項目をONにすると部品トークが動的に追加されます。</p>
-              <p><strong>🔧 詳細設定:</strong> 状況タグ、カテゴリ、チェック項目などを管理します。</p>
+            <div className="space-y-4">
+              <div className="flex items-start gap-3">
+                <span className="text-2xl">🛠️</span>
+                <div>
+                  <h3 className="font-bold text-gray-800 mb-1">ワークスペース（統合版）</h3>
+                  <p className="text-sm text-gray-700">
+                    <strong>6つのメニュー</strong>ですべてを管理：基本シナリオ、部品トーク、組み合わせトーク、状況タグ、チェック項目、カテゴリ。
+                    iPhoneライクな直感的UIで削除・追加が簡単。変更は明示的な<strong>保存ボタン</strong>で確定。
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="text-2xl">📞</span>
+                <div>
+                  <h3 className="font-bold text-gray-800 mb-1">コール画面（実戦コックピット）</h3>
+                  <p className="text-sm text-gray-700">
+                    <strong>基本シナリオ</strong>からスタート。会話を進めながら<strong>チェック項目をON</strong> → 部品トークが<strong>動的に追加</strong>（アニメーション付き）。
+                    状況タブの切り替えで、フェーズに応じたトークセットに変更。右下の<strong>Quick Response</strong>で想定外の質問に即対応。
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </header>
