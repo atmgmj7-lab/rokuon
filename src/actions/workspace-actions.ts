@@ -412,8 +412,9 @@ export async function updateItem(
       ],
     });
 
-    revalidatePath("/workspace");
-    revalidatePath("/call");
+    // 自動保存時の画面リロードを防ぐため、revalidatePathを削除
+    // revalidatePath("/workspace");
+    // revalidatePath("/call");
     return { success: true };
   } catch (error) {
     console.error("❌ アイテム更新エラー:", error);

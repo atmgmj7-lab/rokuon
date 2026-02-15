@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useDebounce } from "@/src/hooks/useDebounce";
 import {
   getAllItems,
   getItemById,
@@ -54,7 +55,7 @@ type MenuTab =
 export default function WorkspacePage() {
   const [activeMenu, setActiveMenu] = useState<MenuTab>("main_scenario");
   const [loading, setLoading] = useState(true);
-  const [hasChanges, setHasChanges] = useState(false);
+  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
 
   // データ
   const [allItems, setAllItems] = useState<ScriptItem[]>([]);
@@ -79,9 +80,19 @@ export default function WorkspacePage() {
   const [editingTargetSituationId, setEditingTargetSituationId] = useState<string>("");
   const [editingTriggerCheckItemId, setEditingTriggerCheckItemId] = useState<string>("");
 
+  // デバウンス（1秒後に保存）
+  const debouncedTitle = useDebounce(editingTitle, 1000);
+  const debouncedHearingPurpose = useDebounce(editingHearingPurpose, 1000);
+  const debouncedContent = useDebounce(editingContent, 1000);
+  const debouncedStrategyNote = useDebounce(editingStrategyNote, 1000);
+  const debouncedCategoryId = useDebounce(editingCategoryId, 1000);
+  const debouncedIsQuickResponse = useDebounce(editingIsQuickResponse, 1000);
+  const debouncedTargetSituationId = useDebounce(editingTargetSituationId, 1000);
+  const debouncedTriggerCheckItemId = useDebounce(editingTriggerCheckItemId, 1000);
+
   // データを読み込む
-  const loadData = async () => {
-    setLoading(true);
+  const loadData = async (silent = false) => {
+    if (!silent) setLoading(true);
     const [items, folders, sits, chks, cats, tls] = await Promise.all([
       getAllItems(),
       getAllFolders(),
@@ -98,8 +109,7 @@ export default function WorkspacePage() {
     setCategories(cats);
     setTimelines(tls);
 
-    setLoading(false);
-    setHasChanges(false);
+    if (!silent) setLoading(false);
   };
 
   // アイテムを選択
@@ -122,36 +132,62 @@ export default function WorkspacePage() {
     }
   };
 
-  // 保存処理
-  const handleSave = async () => {
+  // 自動保存
+  useEffect(() => {
     if (!selectedItem) return;
 
-    await updateItem(
-      selectedItem.id,
-      editingTitle,
-      editingContent,
-      editingHearingPurpose,
-      editingStrategyNote,
-      selectedItem.next_move_hint,
-      editingCategoryId || undefined,
-      editingIsQuickResponse,
-      selectedItem.item_type,
-      editingTargetSituationId || undefined,
-      editingTriggerCheckItemId || undefined
-    );
+    const autoSave = async () => {
+      setSaveStatus("saving");
+      
+      await updateItem(
+        selectedItem.id,
+        debouncedTitle,
+        debouncedContent,
+        debouncedHearingPurpose,
+        debouncedStrategyNote,
+        selectedItem.next_move_hint,
+        debouncedCategoryId || undefined,
+        debouncedIsQuickResponse,
+        selectedItem.item_type,
+        debouncedTargetSituationId || undefined,
+        debouncedTriggerCheckItemId || undefined
+      );
 
-    alert("💾 保存しました！");
-    await loadData();
-    if (selectedItemId) {
-      await loadItem(selectedItemId);
-    }
-    setHasChanges(false);
-  };
+      // 楽観的UIアップデート（ローカル状態を更新）
+      setAllItems((prev) =>
+        prev.map((item) =>
+          item.id === selectedItem.id
+            ? {
+                ...item,
+                title: debouncedTitle,
+                content: debouncedContent,
+                hearing_purpose: debouncedHearingPurpose,
+                strategy_note: debouncedStrategyNote,
+                category_id: debouncedCategoryId || undefined,
+                is_quick_response: debouncedIsQuickResponse,
+                target_situation_id: debouncedTargetSituationId || undefined,
+                trigger_check_item_id: debouncedTriggerCheckItemId || undefined,
+              }
+            : item
+        )
+      );
 
-  // 変更を検知
-  const handleChange = () => {
-    setHasChanges(true);
-  };
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 2000);
+    };
+
+    autoSave();
+  }, [
+    debouncedTitle,
+    debouncedHearingPurpose,
+    debouncedContent,
+    debouncedStrategyNote,
+    debouncedCategoryId,
+    debouncedIsQuickResponse,
+    debouncedTargetSituationId,
+    debouncedTriggerCheckItemId,
+    selectedItem,
+  ]);
 
   // 新規アイテムを作成
   const handleCreateItem = async (itemType: "main_scenario" | "component") => {
@@ -172,7 +208,7 @@ export default function WorkspacePage() {
     );
 
     if (result.success && result.itemId) {
-      await loadData();
+      await loadData(true);
       await loadItem(result.itemId);
       setActiveMenu(itemType);
     }
@@ -184,7 +220,7 @@ export default function WorkspacePage() {
     await deleteItem(itemId);
     setSelectedItem(null);
     setSelectedItemId(null);
-    await loadData();
+    await loadData(true);
   };
 
   // 返答パターンを追加
@@ -242,7 +278,7 @@ export default function WorkspacePage() {
         responses.find((r) => r.id === responseId)?.response_text || "",
         result.itemId
       );
-      await loadData();
+      await loadData(true);
       await loadItem(result.itemId);
       setActiveMenu("component");
     }
@@ -273,12 +309,32 @@ export default function WorkspacePage() {
           <div>
             <h1 className="text-2xl font-bold">🛠️ ワークスペース（統合版）</h1>
             <p className="text-sm opacity-90 mt-1">
-              💡 すべての設定を一箇所で管理できます
+              💡 すべての設定を一箇所で管理 | 自動保存対応
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-4">
+            {/* 保存状態インジケーター */}
+            {selectedItem && (
+              <div className="flex items-center gap-2 bg-white bg-opacity-20 px-4 py-2 rounded-lg">
+                {saveStatus === "saving" && (
+                  <>
+                    <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                    <span className="text-sm font-medium">保存中...</span>
+                  </>
+                )}
+                {saveStatus === "saved" && (
+                  <>
+                    <span className="text-green-300 text-xl">✓</span>
+                    <span className="text-sm font-medium">保存完了</span>
+                  </>
+                )}
+                {saveStatus === "idle" && (
+                  <span className="text-sm font-medium opacity-70">編集可能</span>
+                )}
+              </div>
+            )}
             <Link
-              href="/call-v3"
+              href="/call"
               className="px-4 py-2 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg text-sm font-medium transition-colors"
             >
               📞 コール画面へ
@@ -356,43 +412,18 @@ export default function WorkspacePage() {
             categories={categories}
             responses={responses}
             allItems={allItems}
-            hasChanges={hasChanges}
+            saveStatus={saveStatus}
             onSelectItem={loadItem}
             onCreateItem={handleCreateItem}
             onDeleteItem={handleDeleteItem}
-            onSave={handleSave}
-            onChangeTitle={(v) => {
-              setEditingTitle(v);
-              handleChange();
-            }}
-            onChangeHearingPurpose={(v) => {
-              setEditingHearingPurpose(v);
-              handleChange();
-            }}
-            onChangeContent={(v) => {
-              setEditingContent(v);
-              handleChange();
-            }}
-            onChangeStrategyNote={(v) => {
-              setEditingStrategyNote(v);
-              handleChange();
-            }}
-            onChangeCategoryId={(v) => {
-              setEditingCategoryId(v);
-              handleChange();
-            }}
-            onChangeIsQuickResponse={(v) => {
-              setEditingIsQuickResponse(v);
-              handleChange();
-            }}
-            onChangeTargetSituationId={(v) => {
-              setEditingTargetSituationId(v);
-              handleChange();
-            }}
-            onChangeTriggerCheckItemId={(v) => {
-              setEditingTriggerCheckItemId(v);
-              handleChange();
-            }}
+            onChangeTitle={setEditingTitle}
+            onChangeHearingPurpose={setEditingHearingPurpose}
+            onChangeContent={setEditingContent}
+            onChangeStrategyNote={setEditingStrategyNote}
+            onChangeCategoryId={setEditingCategoryId}
+            onChangeIsQuickResponse={setEditingIsQuickResponse}
+            onChangeTargetSituationId={setEditingTargetSituationId}
+            onChangeTriggerCheckItemId={setEditingTriggerCheckItemId}
             onAddResponse={handleAddResponse}
             onUpdateResponse={handleUpdateResponse}
             onDeleteResponse={handleDeleteResponse}
@@ -407,23 +438,23 @@ export default function WorkspacePage() {
             situations={situations}
             talks={allItems}
             checkItems={checkItems}
-            onUpdate={loadData}
+            onUpdate={() => loadData(true)}
           />
         )}
 
         {/* 状況タグ管理 */}
         {activeMenu === "situations" && (
-          <SituationManager situations={situations} onUpdate={loadData} />
+          <SituationManager situations={situations} onUpdate={() => loadData(true)} />
         )}
 
         {/* チェック項目管理 */}
         {activeMenu === "checks" && (
-          <CheckItemManager checkItems={checkItems} onUpdate={loadData} />
+          <CheckItemManager checkItems={checkItems} onUpdate={() => loadData(true)} />
         )}
 
         {/* カテゴリ管理 */}
         {activeMenu === "categories" && (
-          <CategoryManager categories={categories} onUpdate={loadData} />
+          <CategoryManager categories={categories} onUpdate={() => loadData(true)} />
         )}
       </div>
     </div>
@@ -459,7 +490,7 @@ function MenuButton({
   );
 }
 
-// トークエディター（続きは次のメッセージで）
+// トークエディター
 function TalkEditor({
   activeMenu,
   displayItems,
@@ -477,11 +508,10 @@ function TalkEditor({
   categories,
   responses,
   allItems,
-  hasChanges,
+  saveStatus,
   onSelectItem,
   onCreateItem,
   onDeleteItem,
-  onSave,
   onChangeTitle,
   onChangeHearingPurpose,
   onChangeContent,
@@ -551,25 +581,26 @@ function TalkEditor({
             <div className="text-center">
               <span className="text-6xl mb-4 block">👈</span>
               <p className="text-lg">左からトークを選択してください</p>
+              <p className="text-sm mt-2 opacity-70">編集内容は自動的に保存されます</p>
             </div>
           </div>
         ) : (
           <div className="space-y-6">
-            {/* 保存ボタン */}
-            {hasChanges && (
-              <div className="bg-yellow-50 border-2 border-yellow-300 rounded-lg p-4 flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">⚠️</span>
-                  <p className="font-bold text-yellow-800">変更が保存されていません</p>
+            {/* 保存状態インジケーター */}
+            <div className="flex items-center justify-end">
+              {saveStatus === "saving" && (
+                <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full" />
+                  <span className="text-sm font-medium text-blue-800">保存中...</span>
                 </div>
-                <button
-                  onClick={onSave}
-                  className="px-6 py-3 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg font-bold transition-all shadow-lg hover:shadow-xl"
-                >
-                  💾 保存する
-                </button>
-              </div>
-            )}
+              )}
+              {saveStatus === "saved" && (
+                <div className="flex items-center gap-2 px-4 py-2 bg-green-50 rounded-lg border border-green-200">
+                  <span className="text-green-600 text-xl">✓</span>
+                  <span className="text-sm font-medium text-green-800">保存完了</span>
+                </div>
+              )}
+            </div>
 
             {/* トーク編集フォーム */}
             <div>
@@ -585,7 +616,8 @@ function TalkEditor({
                     type="text"
                     value={editingTitle}
                     onChange={(e) => onChangeTitle(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                    placeholder="トークのタイトルを入力..."
                   />
                 </div>
 
@@ -598,7 +630,8 @@ function TalkEditor({
                     value={editingHearingPurpose}
                     onChange={(e) => onChangeHearingPurpose(e.target.value)}
                     rows={3}
-                    className="w-full px-4 py-3 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-3 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                    placeholder="このトークの目的を入力..."
                   />
                 </div>
 
@@ -610,7 +643,8 @@ function TalkEditor({
                     value={editingContent}
                     onChange={(e) => onChangeContent(e.target.value)}
                     rows={8}
-                    className="w-full px-4 py-3 border-2 border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 text-lg"
+                    className="w-full px-4 py-3 border-2 border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-lg transition-all"
+                    placeholder="実際に話すトーク内容を入力..."
                   />
                 </div>
 
@@ -622,7 +656,8 @@ function TalkEditor({
                     value={editingStrategyNote}
                     onChange={(e) => onChangeStrategyNote(e.target.value)}
                     rows={4}
-                    className="w-full px-4 py-3 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-4 py-3 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all"
+                    placeholder="このトークの戦略的意図を入力..."
                   />
                 </div>
               </div>
@@ -640,7 +675,7 @@ function TalkEditor({
                     <select
                       value={editingTargetSituationId}
                       onChange={(e) => onChangeTargetSituationId(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                     >
                       <option value="">紐付けなし</option>
                       {situations.map((sit: Situation) => (
@@ -658,7 +693,7 @@ function TalkEditor({
                     <select
                       value={editingTriggerCheckItemId}
                       onChange={(e) => onChangeTriggerCheckItemId(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                     >
                       <option value="">紐付けなし</option>
                       {checkItems.map((check: CheckItem) => (
@@ -683,7 +718,7 @@ function TalkEditor({
                   <select
                     value={editingCategoryId}
                     onChange={(e) => onChangeCategoryId(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                   >
                     <option value="">未分類</option>
                     {categories.map((cat: Category) => (
@@ -753,7 +788,7 @@ function TalkEditor({
                             onUpdateResponse(response.id, e.target.value, response.next_item_id)
                           }
                           placeholder="顧客の返答（例: 忙しいです）"
-                          className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 mr-3"
+                          className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mr-3 transition-all"
                         />
                         <button
                           onClick={() => onDeleteResponse(response.id)}
@@ -789,7 +824,7 @@ function TalkEditor({
                                   );
                                 }
                               }}
-                              className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm"
+                              className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm transition-all"
                             >
                               <option value="">既存から選択...</option>
                               {allItems.map((item: ScriptItem) => (
@@ -806,18 +841,6 @@ function TalkEditor({
                 })}
               </div>
             </div>
-
-            {/* 最下部にも保存ボタン */}
-            {hasChanges && (
-              <div className="pt-6 border-t-2 border-gray-200">
-                <button
-                  onClick={onSave}
-                  className="w-full px-6 py-4 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg font-bold text-lg transition-all shadow-lg hover:shadow-xl"
-                >
-                  💾 保存する
-                </button>
-              </div>
-            )}
           </div>
         )}
       </div>
@@ -825,7 +848,7 @@ function TalkEditor({
   );
 }
 
-// 状況タグ管理（シンプルなリスト形式）
+// 状況タグ管理
 function SituationManager({
   situations,
   onUpdate,
