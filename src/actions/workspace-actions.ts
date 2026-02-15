@@ -421,21 +421,6 @@ export async function updateItem(
   }
 }
 
-export async function deleteItem(itemId: string) {
-  try {
-    await db.execute({
-      sql: "DELETE FROM script_items WHERE id = ?",
-      args: [itemId],
-    });
-
-    revalidatePath("/workspace");
-    return { success: true };
-  } catch (error) {
-    console.error("❌ アイテム削除エラー:", error);
-    return { success: false, error: error instanceof Error ? error.message : "不明なエラー" };
-  }
-}
-
 // ========== 階層構造全体の取得 ==========
 
 export async function getWorkspaceHierarchy() {
