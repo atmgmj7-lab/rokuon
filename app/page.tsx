@@ -15,18 +15,35 @@ export default function Home() {
 
           {/* 機能メニュー */}
           <div className="flex gap-4 justify-center mb-8 flex-wrap">
+            {/* V2版（最新・完全カスタマイズ対応） */}
+            <Link
+              href="/call-v2"
+              className="px-6 py-3 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white rounded-lg font-bold transition-colors shadow-lg hover:shadow-xl animate-pulse ring-4 ring-orange-300"
+            >
+              📞 コール画面 V2 🆕
+            </Link>
+            <Link
+              href="/workspace-v2"
+              className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-lg font-bold transition-colors shadow-lg hover:shadow-xl ring-4 ring-indigo-300"
+            >
+              🛠️ ワークスペース V2 🆕
+            </Link>
+
+            {/* V1版（従来版） */}
             <Link
               href="/call"
-              className="px-6 py-3 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white rounded-lg font-medium transition-colors shadow-md hover:shadow-lg animate-pulse"
+              className="px-6 py-3 bg-gradient-to-r from-orange-400 to-red-400 hover:from-orange-500 hover:to-red-500 text-white rounded-lg font-medium transition-colors shadow-md hover:shadow-lg opacity-75"
             >
-              📞 ライブ・コーチング
+              📞 コール画面 V1
             </Link>
             <Link
               href="/workspace"
-              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white rounded-lg font-medium transition-colors shadow-md hover:shadow-lg"
+              className="px-6 py-3 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white rounded-lg font-medium transition-colors shadow-md hover:shadow-lg opacity-75"
             >
-              📁 トークワークスペース
+              📁 ワークスペース V1
             </Link>
+
+            {/* その他の機能 */}
             <Link
               href="/scripts"
               className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-medium transition-colors shadow-md hover:shadow-lg"

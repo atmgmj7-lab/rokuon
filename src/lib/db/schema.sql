@@ -122,8 +122,11 @@ CREATE TABLE IF NOT EXISTS script_items (
   id TEXT PRIMARY KEY,
   folder_id TEXT NOT NULL,
   title TEXT NOT NULL,
+  -- ヒアリングすべき内容/目的
+  hearing_purpose TEXT,
+  -- 実際の聞き方（トーク本文）
   content TEXT NOT NULL,
-  -- 戦略メモ（なぜ効くのか）
+  -- トップの狙い（戦略メモ）
   strategy_note TEXT,
   -- 次の一手
   next_move_hint TEXT,
@@ -131,6 +134,18 @@ CREATE TABLE IF NOT EXISTS script_items (
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   FOREIGN KEY (folder_id) REFERENCES script_folders(id) ON DELETE CASCADE
+);
+
+-- 顧客の返答パターン（分岐管理）
+CREATE TABLE IF NOT EXISTS item_responses (
+  id TEXT PRIMARY KEY,
+  parent_item_id TEXT NOT NULL,
+  response_text TEXT NOT NULL, -- 顧客の返答例（例：「高い」「必要ない」「興味ある」）
+  next_item_id TEXT, -- この返答が来た際に展開する次のトークID
+  sort_order INTEGER DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  FOREIGN KEY (parent_item_id) REFERENCES script_items(id) ON DELETE CASCADE,
+  FOREIGN KEY (next_item_id) REFERENCES script_items(id) ON DELETE SET NULL
 );
 
 -- インデックス
@@ -149,6 +164,75 @@ CREATE INDEX IF NOT EXISTS idx_script_folders_category ON script_folders(categor
 CREATE INDEX IF NOT EXISTS idx_script_items_folder ON script_items(folder_id);
 CREATE INDEX IF NOT EXISTS idx_script_folders_sort ON script_folders(sort_order);
 CREATE INDEX IF NOT EXISTS idx_script_items_sort ON script_items(sort_order);
+
+-- ========================================
+-- Phase 9: 完全カスタマイズ対応
+-- ========================================
+
+-- 状況タグ（営業フェーズの定義）
+CREATE TABLE IF NOT EXISTS situations (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT,
+  color TEXT DEFAULT '#3B82F6',
+  icon TEXT DEFAULT '📌',
+  sort_order INTEGER DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
+
+-- チェック項目マスター
+CREATE TABLE IF NOT EXISTS check_items (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT,
+  category TEXT,
+  sort_order INTEGER DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
+
+-- タイムラインとチェック項目の紐付け
+CREATE TABLE IF NOT EXISTS timeline_check_items (
+  id TEXT PRIMARY KEY,
+  timeline_id TEXT NOT NULL,
+  check_item_id TEXT NOT NULL,
+  sort_order INTEGER DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  FOREIGN KEY (timeline_id) REFERENCES timelines(id) ON DELETE CASCADE,
+  FOREIGN KEY (check_item_id) REFERENCES check_items(id) ON DELETE CASCADE
+);
+
+-- ========================================
+-- Phase 8: 動的カテゴリとタイムライン
+-- ========================================
+
+-- カテゴリ（動的カテゴリ管理）
+CREATE TABLE IF NOT EXISTS categories (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  color TEXT DEFAULT '#6B7280',
+  sort_order INTEGER DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
+
+-- タイムライン（状況・シーン）
+CREATE TABLE IF NOT EXISTS timelines (
+  id TEXT PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT,
+  sort_order INTEGER DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
+
+-- タイムラインブロック（タイムラインとトークの紐付け）
+CREATE TABLE IF NOT EXISTS timeline_blocks (
+  id TEXT PRIMARY KEY,
+  timeline_id TEXT NOT NULL,
+  script_item_id TEXT NOT NULL,
+  sort_order INTEGER DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  FOREIGN KEY (timeline_id) REFERENCES timelines(id) ON DELETE CASCADE,
+  FOREIGN KEY (script_item_id) REFERENCES script_items(id) ON DELETE CASCADE
+);
 
 -- ========================================
 -- Phase 8: ライブ・コーチング（状況インプット）
@@ -176,6 +260,11 @@ CREATE TABLE IF NOT EXISTS item_situations (
 );
 
 -- インデックス
+CREATE INDEX IF NOT EXISTS idx_categories_sort ON categories(sort_order);
+CREATE INDEX IF NOT EXISTS idx_script_items_category ON script_items(category_id);
+CREATE INDEX IF NOT EXISTS idx_script_items_quick_response ON script_items(is_quick_response);
+CREATE INDEX IF NOT EXISTS idx_timeline_blocks_timeline ON timeline_blocks(timeline_id, sort_order);
 CREATE INDEX IF NOT EXISTS idx_situation_tags_category ON situation_tags(category, sort_order);
 CREATE INDEX IF NOT EXISTS idx_item_situations_item ON item_situations(item_id);
 CREATE INDEX IF NOT EXISTS idx_item_situations_tag ON item_situations(situation_tag_id);
+CREATE INDEX IF NOT EXISTS idx_item_responses_parent ON item_responses(parent_item_id, sort_order);

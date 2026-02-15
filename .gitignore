@@ -19,6 +19,7 @@
 
 # production
 /build
+/dist
 
 # misc
 .DS_Store
@@ -28,10 +29,13 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
 
-# env files
+# env files (keep .env.example)
 .env
 .env*.local
+.env.development
+.env.production
 
 # vercel
 .vercel
@@ -43,3 +47,43 @@ next-env.d.ts
 # uploads
 /public/uploads/*
 !/public/uploads/.gitkeep
+
+# database files
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+local.db
+
+# IDE
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+.history/
+
+# OS
+Thumbs.db
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Desktop.ini
+
+# Cursor
+.cursor/
+
+# Temporary files
+*.tmp
+*.temp
+*.log

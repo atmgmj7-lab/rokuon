@@ -3,184 +3,303 @@
 import { useState, useEffect } from "react";
 import {
   getWorkspaceHierarchy,
-  createCategory,
-  createFolder,
-  createItem,
+  getAllItems,
+  getItemById,
   updateItem,
-  deleteItem,
+  createItem,
+  getResponsesByItem,
+  createItemResponse,
+  updateItemResponse,
+  deleteItemResponse,
   getAllFolders,
-  toggleSidebarVisibility,
+  getAllDynamicCategories,
+  createDynamicCategory,
 } from "@/src/actions/workspace-actions";
 import { seedWorkspace } from "@/src/actions/seed-workspace";
-import type { ScriptFolder, ScriptItem } from "@/src/types/workspace";
+import type { ScriptItem, ItemResponse, ScriptFolder, Category } from "@/src/types/workspace";
+import { useDebounce } from "@/src/hooks/useDebounce";
 import Link from "next/link";
+
+type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 export default function WorkspacePage() {
   const [hierarchy, setHierarchy] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [activeBaseTalkTab, setActiveBaseTalkTab] = useState<string | null>(null);
-  const [selectedItem, setSelectedItem] = useState<ScriptItem | null>(null);
-  const [editingItem, setEditingItem] = useState<ScriptItem | null>(null);
-  const [showCustomizeModal, setShowCustomizeModal] = useState(false);
+  const [allItems, setAllItems] = useState<ScriptItem[]>([]);
   const [allFolders, setAllFolders] = useState<ScriptFolder[]>([]);
-  const [expandedSituationalFolders, setExpandedSituationalFolders] = useState<Set<string>>(new Set());
-  const [overlayItem, setOverlayItem] = useState<ScriptItem | null>(null);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [selectedItem, setSelectedItem] = useState<ScriptItem | null>(null);
+  const [responses, setResponses] = useState<ItemResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saveStatus, setSaveStatus] = useState<SaveStatus>("idle");
+  const [activeTab, setActiveTab] = useState<"base" | "situational">("base");
+
+  // 分岐数をカウント
+  const [branchCounts, setBranchCounts] = useState<Map<string, number>>(new Map());
+
+  // 編集中の値（デバウンス用）
+  const [editingTitle, setEditingTitle] = useState("");
+  const [editingHearingPurpose, setEditingHearingPurpose] = useState("");
+  const [editingContent, setEditingContent] = useState("");
+  const [editingStrategyNote, setEditingStrategyNote] = useState("");
+  const [editingCategoryId, setEditingCategoryId] = useState<string>("");
+  const [editingIsQuickResponse, setEditingIsQuickResponse] = useState<number>(0);
+
+  // デバウンス処理
+  const debouncedTitle = useDebounce(editingTitle, 1000);
+  const debouncedHearingPurpose = useDebounce(editingHearingPurpose, 1000);
+  const debouncedContent = useDebounce(editingContent, 1000);
+  const debouncedStrategyNote = useDebounce(editingStrategyNote, 1000);
 
   // データを読み込む
   const loadData = async () => {
     setLoading(true);
-    const result = await getWorkspaceHierarchy();
-    if (result.success) {
-      setHierarchy(result.hierarchy);
-      
-      // 最初のカテゴリを自動選択
-      if (result.hierarchy.length > 0 && !selectedCategory) {
-        const firstCategory = result.hierarchy[0];
-        setSelectedCategory(firstCategory.category.id);
-        
-        // 最初のbase_talkフォルダを自動選択
-        const baseTalkFolder = firstCategory.folders.find(
-          (f: any) => f.folder.folder_type === "base_talk"
-        );
-        if (baseTalkFolder) {
-          setActiveBaseTalkTab(baseTalkFolder.folder.id);
-        }
-      }
+    const hierarchyResult = await getWorkspaceHierarchy();
+    if (hierarchyResult.success) {
+      setHierarchy(hierarchyResult.hierarchy);
     }
-    
-    // すべてのフォルダを取得（カスタマイズ用）
+
+    const items = await getAllItems();
+    setAllItems(items);
+
     const folders = await getAllFolders();
     setAllFolders(folders);
-    
+
+    const cats = await getAllDynamicCategories();
+    setCategories(cats);
+
+    // 各アイテムの分岐数をカウント
+    const counts = new Map<string, number>();
+    for (const item of items) {
+      const itemResponses = await getResponsesByItem(item.id);
+      counts.set(item.id, itemResponses.length);
+    }
+    setBranchCounts(counts);
+
+    // 選択中のアイテムをリロード
+    if (selectedItemId) {
+      await loadItem(selectedItemId);
+    }
+
     setLoading(false);
+  };
+
+  // 特定のアイテムを読み込む
+  const loadItem = async (itemId: string) => {
+    const item = await getItemById(itemId);
+    if (item) {
+      setSelectedItem(item);
+      setSelectedItemId(itemId);
+      setEditingTitle(item.title);
+      setEditingHearingPurpose(item.hearing_purpose || "");
+      setEditingContent(item.content);
+      setEditingStrategyNote(item.strategy_note || "");
+      setEditingCategoryId(item.category_id || "");
+      setEditingIsQuickResponse(item.is_quick_response || 0);
+
+      // 返答パターンを取得
+      const itemResponses = await getResponsesByItem(itemId);
+      setResponses(itemResponses);
+    }
   };
 
   useEffect(() => {
     loadData();
   }, []);
 
-  // カテゴリを切り替え
-  const handleCategoryChange = (categoryId: string) => {
-    setSelectedCategory(categoryId);
-    const category = hierarchy?.find((c: any) => c.category.id === categoryId);
-    if (category) {
-      const baseTalkFolder = category.folders.find(
-        (f: any) => f.folder.folder_type === "base_talk"
-      );
-      if (baseTalkFolder) {
-        setActiveBaseTalkTab(baseTalkFolder.folder.id);
+  // デバウンス後に自動保存
+  useEffect(() => {
+    if (selectedItem && saveStatus !== "saving") {
+      const hasChanges =
+        debouncedTitle !== selectedItem.title ||
+        debouncedHearingPurpose !== (selectedItem.hearing_purpose || "") ||
+        debouncedContent !== selectedItem.content ||
+        debouncedStrategyNote !== (selectedItem.strategy_note || "");
+
+      if (hasChanges && debouncedTitle) {
+        handleAutoSave();
       }
     }
-    setSelectedItem(null);
-    setEditingItem(null);
-  };
+  }, [debouncedTitle, debouncedHearingPurpose, debouncedContent, debouncedStrategyNote]);
 
-  // 状況別フォルダの展開/折りたたみ
-  const toggleSituationalFolder = (folderId: string) => {
-    const newExpanded = new Set(expandedSituationalFolders);
-    if (newExpanded.has(folderId)) {
-      newExpanded.delete(folderId);
-    } else {
-      newExpanded.add(folderId);
-    }
-    setExpandedSituationalFolders(newExpanded);
-  };
+  // 自動保存
+  const handleAutoSave = async () => {
+    if (!selectedItem) return;
 
-  // アイテムをクリック（右ペインから）
-  const handleSituationalItemClick = (item: ScriptItem) => {
-    setOverlayItem(item);
-  };
-
-  // アイテムをクリック（中央ペインから）
-  const handleBaseTalkItemClick = (item: ScriptItem) => {
-    setSelectedItem(item);
-    setEditingItem(null);
-  };
-
-  // 編集モードに切り替え
-  const handleEditClick = (item: ScriptItem) => {
-    setEditingItem({ ...item });
-  };
-
-  // 編集を保存
-  const handleSaveEdit = async () => {
-    if (!editingItem) return;
-
+    setSaveStatus("saving");
     const result = await updateItem(
-      editingItem.id,
-      editingItem.title,
-      editingItem.content,
-      editingItem.strategy_note,
-      editingItem.next_move_hint
+      selectedItem.id,
+      debouncedTitle,
+      debouncedContent,
+      debouncedHearingPurpose,
+      debouncedStrategyNote,
+      selectedItem.next_move_hint,
+      editingCategoryId || undefined,
+      editingIsQuickResponse
     );
 
     if (result.success) {
-      await loadData();
-      setEditingItem(null);
-      setOverlayItem(null);
-      setSelectedItem(editingItem);
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 2000);
+      // データを再読み込み（分岐数更新のため）
+      const items = await getAllItems();
+      setAllItems(items);
     } else {
-      alert(`エラー: ${result.error}`);
+      setSaveStatus("error");
     }
   };
 
-  // サイドバー表示を切り替え
-  const handleToggleVisibility = async (folderId: string, isVisible: boolean) => {
-    const result = await toggleSidebarVisibility(folderId, isVisible);
+  // カテゴリやQuick Response設定が変更されたら即座に保存
+  const handleQuickSave = async (updates: Partial<ScriptItem>) => {
+    if (!selectedItem) return;
+
+    setSaveStatus("saving");
+    const result = await updateItem(
+      selectedItem.id,
+      updates.title ?? selectedItem.title,
+      updates.content ?? selectedItem.content,
+      updates.hearing_purpose ?? selectedItem.hearing_purpose,
+      updates.strategy_note ?? selectedItem.strategy_note,
+      updates.next_move_hint ?? selectedItem.next_move_hint,
+      updates.category_id ?? selectedItem.category_id,
+      updates.is_quick_response ?? selectedItem.is_quick_response
+    );
+
     if (result.success) {
+      setSaveStatus("saved");
+      setTimeout(() => setSaveStatus("idle"), 2000);
       await loadData();
+    } else {
+      setSaveStatus("error");
     }
   };
 
-  // 新規フォルダ作成
-  const handleCreateFolder = async (folderType: "base_talk" | "situational") => {
-    if (!selectedCategory) {
-      alert("カテゴリを選択してください");
+  // アイテムを選択
+  const handleSelectItem = async (itemId: string) => {
+    await loadItem(itemId);
+  };
+
+  // 新規アイテムを作成
+  const handleCreateItem = async (folderType: "base_talk" | "situational") => {
+    // 適切なフォルダを見つける
+    const targetFolder = allFolders.find((f) => f.folder_type === folderType);
+    if (!targetFolder) {
+      alert("フォルダが見つかりません。先にサンプルデータを作成してください。");
       return;
     }
 
-    const name = prompt(
-      folderType === "base_talk"
-        ? "基本トーク名を入力（例: ネット充実企業用）"
-        : "ジャンル名を入力（例: クロージング）"
+    const result = await createItem(
+      targetFolder.id,
+      folderType === "base_talk" ? "新しい基本トーク" : "新しい武器",
+      "ここに内容を入力してください",
+      "",
+      "",
+      "",
+      0
     );
-    if (!name) return;
 
-    const result = await createFolder(selectedCategory, name, folderType);
-    if (result.success) {
+    if (result.success && result.itemId) {
       await loadData();
-      if (folderType === "base_talk" && result.folderId) {
-        setActiveBaseTalkTab(result.folderId);
+      await loadItem(result.itemId);
+      if (folderType === "base_talk") {
+        setActiveTab("base");
+      } else {
+        setActiveTab("situational");
       }
     }
   };
 
-  // 新規アイテム作成
-  const handleCreateItem = async (folderId: string) => {
-    const title = prompt("トークタイトルを入力してください");
-    if (!title) return;
+  // 返答パターンを追加
+  const handleAddResponse = async () => {
+    if (!selectedItem) return;
 
-    const content = prompt("トーク内容を入力してください");
-    if (!content) return;
+    const responseText = prompt("顧客の想定返答を入力してください（例: 高いですね、間に合ってます）");
+    if (!responseText) return;
 
-    const result = await createItem(folderId, title, content);
+    const result = await createItemResponse(selectedItem.id, responseText);
     if (result.success) {
-      await loadData();
+      await loadItem(selectedItem.id);
+      await loadData(); // 分岐数を更新
     }
+  };
+
+  // 分岐先に新規トークを作成
+  const handleCreateBranchTalk = async (responseId: string) => {
+    if (!selectedItem) return;
+
+    // 空の新規アイテムを作成
+    const result = await createItem(
+      selectedItem.folder_id,
+      "（分岐先トーク）",
+      "ここにトーク内容を入力してください",
+      "",
+      "",
+      "",
+      selectedItem.sort_order + 1
+    );
+
+    if (result.success && result.itemId) {
+      // 返答パターンに紐付け
+      const response = responses.find((r) => r.id === responseId);
+      if (response) {
+        await updateItemResponse(responseId, response.response_text, result.itemId);
+      }
+
+      // 新しいアイテムを選択
+      await loadData();
+      await loadItem(result.itemId);
+    }
+  };
+
+  // 既存トークを分岐先に設定
+  const handleSelectExistingTalk = async (responseId: string, nextItemId: string) => {
+    const response = responses.find((r) => r.id === responseId);
+    if (response) {
+      await updateItemResponse(responseId, response.response_text, nextItemId);
+      await loadItem(selectedItem!.id);
+      await loadData(); // 分岐数を更新
+    }
+  };
+
+  // 返答パターンを削除
+  const handleDeleteResponse = async (responseId: string) => {
+    if (!confirm("この返答パターンを削除しますか？")) return;
+
+    await deleteItemResponse(responseId);
+    await loadItem(selectedItem!.id);
+    await loadData(); // 分岐数を更新
   };
 
   // サンプルデータをシード
   const handleSeedWorkspace = async () => {
-    if (!confirm("サンプルデータを作成しますか？（IT企業・建設業のトーク集）")) return;
+    if (!confirm("サンプルデータを作成しますか？")) return;
 
     const result = await seedWorkspace();
     if (result.success) {
       alert(`✅ ${result.message}`);
       await loadData();
-    } else {
-      alert(`❌ エラー: ${result.error}`);
     }
+  };
+
+  // 表示するアイテムをフィルタ
+  const displayItems = allItems.filter((item) => {
+    const folder = allFolders.find((f) => f.id === item.folder_id);
+    if (!folder) return false;
+    return activeTab === "base"
+      ? folder.folder_type === "base_talk"
+      : folder.folder_type === "situational";
+  });
+
+  // グループ化されたアイテム（分岐先選択用）
+  const groupedItems = {
+    base: allItems.filter((item) => {
+      const folder = allFolders.find((f) => f.id === item.folder_id);
+      return folder?.folder_type === "base_talk";
+    }),
+    situational: allItems.filter((item) => {
+      const folder = allFolders.find((f) => f.id === item.folder_id);
+      return folder?.folder_type === "situational";
+    }),
   };
 
   if (loading) {
@@ -191,514 +310,462 @@ export default function WorkspacePage() {
     );
   }
 
-  const currentCategory = hierarchy?.find((c: any) => c.category.id === selectedCategory);
-  const baseTalkFolders = currentCategory?.folders.filter((f: any) => f.folder.folder_type === "base_talk") || [];
-  const situationalFolders = currentCategory?.folders.filter(
-    (f: any) => f.folder.folder_type === "situational" && f.folder.is_visible_in_sidebar === 1
-  ) || [];
-  const activeFolder = baseTalkFolders.find((f: any) => f.folder.id === activeBaseTalkTab);
-
   return (
     <div className="h-screen flex flex-col bg-gray-50">
       {/* ヘッダー */}
-      <div className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <h1 className="text-xl font-bold text-gray-800">📁 トークワークスペース</h1>
-          
-          {/* カテゴリ選択 */}
-          {hierarchy && hierarchy.length > 0 && (
-            <select
-              value={selectedCategory || ""}
-              onChange={(e) => handleCategoryChange(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+      <div className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white px-6 py-4 shadow-lg">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold">📁 トークワークスペース（武器庫）</h1>
+            <p className="text-sm opacity-90 mt-1">
+              ここでトークと分岐を準備してください。コール画面では実行のみ。
+            </p>
+          </div>
+          <div className="flex gap-2">
+            {(!hierarchy || hierarchy.length === 0) && (
+              <button
+                onClick={handleSeedWorkspace}
+                className="px-4 py-2 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg text-sm font-medium transition-colors"
+              >
+                🌱 サンプルデータ作成
+              </button>
+            )}
+            <Link
+              href="/call"
+              className="px-4 py-2 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg text-sm font-medium transition-colors"
             >
-              {hierarchy.map((catData: any) => (
-                <option key={catData.category.id} value={catData.category.id}>
-                  {catData.category.name}
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-
-        <div className="flex gap-2">
-          {(!hierarchy || hierarchy.length === 0) && (
-            <button
-              onClick={handleSeedWorkspace}
-              className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg text-sm font-medium transition-colors"
+              📞 コール画面へ
+            </Link>
+            <Link
+              href="/"
+              className="px-4 py-2 bg-white bg-opacity-10 hover:bg-opacity-20 text-white rounded-lg text-sm font-medium transition-colors"
             >
-              🌱 サンプルデータ作成
-            </button>
-          )}
-          <Link
-            href="/"
-            className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg text-sm font-medium transition-colors"
-          >
-            ← ホーム
-          </Link>
+              ← ホーム
+            </Link>
+          </div>
         </div>
       </div>
 
       <div className="flex-1 flex overflow-hidden">
-        {/* 中央ペイン */}
-        <div className="flex-1 flex flex-col overflow-hidden">
-          {/* 基本トークタブ */}
-          {baseTalkFolders.length > 0 && (
-            <div className="bg-white border-b border-gray-200 px-4 py-2 flex items-center gap-2 overflow-x-auto">
-              {baseTalkFolders.map((folderData: any) => (
-                <button
-                  key={folderData.folder.id}
-                  onClick={() => setActiveBaseTalkTab(folderData.folder.id)}
-                  className={`px-4 py-2 rounded-lg font-medium whitespace-nowrap transition-all ${
-                    activeBaseTalkTab === folderData.folder.id
-                      ? "bg-blue-600 text-white shadow-md"
-                      : "bg-gray-100 hover:bg-gray-200 text-gray-700"
-                  }`}
-                >
-                  📄 {folderData.folder.name}
-                </button>
-              ))}
-              <button
-                onClick={() => handleCreateFolder("base_talk")}
-                className="px-4 py-2 bg-green-100 hover:bg-green-200 text-green-700 rounded-lg font-medium whitespace-nowrap transition-colors"
-              >
-                ＋ 基本トークを追加
-              </button>
-            </div>
-          )}
-
-          {/* 基本トークアイテム表示 */}
-          <div className="flex-1 overflow-y-auto p-6">
-            {!activeFolder && (
-              <div className="text-center py-20 text-gray-500">
-                <p>カテゴリを選択してください</p>
-              </div>
-            )}
-
-            {activeFolder && (
-              <div className="max-w-4xl mx-auto space-y-4">
-                {activeFolder.items.length === 0 && (
-                  <div className="text-center py-12 text-gray-500">
-                    <p className="mb-4">トークアイテムがありません</p>
-                    <button
-                      onClick={() => handleCreateItem(activeFolder.folder.id)}
-                      className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-                    >
-                      ➕ トークを追加
-                    </button>
-                  </div>
-                )}
-
-                {activeFolder.items.map((item: ScriptItem, index: number) => (
-                  <div
-                    key={item.id}
-                    className="bg-white rounded-xl shadow-lg p-6 hover:shadow-xl transition-shadow cursor-pointer"
-                    onClick={() => handleBaseTalkItemClick(item)}
-                  >
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        <span className="text-2xl font-bold text-gray-400">
-                          {index + 1}
-                        </span>
-                        <h3 className="text-xl font-bold text-gray-800">{item.title}</h3>
-                      </div>
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleEditClick(item);
-                        }}
-                        className="px-3 py-1 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded text-sm font-medium transition-colors"
-                      >
-                        ✏️ 編集
-                      </button>
-                    </div>
-
-                    <p className="text-gray-700 whitespace-pre-wrap leading-relaxed mb-4">
-                      {item.content}
-                    </p>
-
-                    {item.strategy_note && (
-                      <div className="p-3 bg-purple-50 rounded-lg border border-purple-200 mb-2">
-                        <p className="text-sm text-purple-700">
-                          💡 <strong>戦略:</strong> {item.strategy_note}
-                        </p>
-                      </div>
-                    )}
-
-                    {item.next_move_hint && (
-                      <div className="p-3 bg-green-50 rounded-lg border border-green-200">
-                        <p className="text-sm text-green-700">
-                          ➡️ <strong>次の一手:</strong> {item.next_move_hint}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                ))}
-
-                {activeFolder.items.length > 0 && (
-                  <div className="text-center pt-6">
-                    <button
-                      onClick={() => handleCreateItem(activeFolder.folder.id)}
-                      className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-                    >
-                      ➕ トークを追加
-                    </button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* 右ペイン: 武器庫 */}
-        <div className="w-96 bg-white border-l border-gray-200 flex flex-col overflow-hidden">
-          {/* 武器庫ヘッダー */}
-          <div className="bg-gradient-to-r from-orange-500 to-red-500 text-white p-4 flex items-center justify-between">
-            <h2 className="text-lg font-bold">🛡️ 武器庫</h2>
+        {/* 左ペイン: トーク一覧（タブ切り替え） */}
+        <div className="w-1/3 bg-white border-r border-gray-200 flex flex-col">
+          {/* タブ */}
+          <div className="flex border-b border-gray-200">
             <button
-              onClick={() => setShowCustomizeModal(true)}
-              className="px-3 py-1 bg-white bg-opacity-20 hover:bg-opacity-30 rounded text-sm font-medium transition-colors"
+              onClick={() => setActiveTab("base")}
+              className={`flex-1 px-4 py-3 font-medium transition-colors ${
+                activeTab === "base"
+                  ? "bg-blue-50 text-blue-700 border-b-2 border-blue-600"
+                  : "text-gray-600 hover:bg-gray-50"
+              }`}
             >
-              ⚙️ カスタマイズ
+              📖 基本シナリオ
+            </button>
+            <button
+              onClick={() => setActiveTab("situational")}
+              className={`flex-1 px-4 py-3 font-medium transition-colors ${
+                activeTab === "situational"
+                  ? "bg-orange-50 text-orange-700 border-b-2 border-orange-600"
+                  : "text-gray-600 hover:bg-gray-50"
+              }`}
+            >
+              🛡️ 武器庫
             </button>
           </div>
 
-          {/* 状況別フォルダ一覧 */}
+          {/* 新規作成ボタン */}
+          <div className="p-4 border-b border-gray-200">
+            <button
+              onClick={() => handleCreateItem(activeTab === "base" ? "base_talk" : "situational")}
+              className={`w-full px-4 py-3 rounded-lg font-medium transition-colors ${
+                activeTab === "base"
+                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white"
+                  : "bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white"
+              }`}
+            >
+              ➕ {activeTab === "base" ? "基本トークを追加" : "武器を追加"}
+            </button>
+          </div>
+
+          {/* トーク一覧 */}
           <div className="flex-1 overflow-y-auto p-4">
-            {situationalFolders.length === 0 && (
-              <div className="text-center py-12 text-gray-500 text-sm">
-                <p className="mb-4">表示する武器庫がありません</p>
+            {displayItems.length === 0 && (
+              <div className="text-center py-12 text-gray-500">
+                <p className="mb-4">
+                  {activeTab === "base" ? "基本シナリオ" : "武器庫"}がありません
+                </p>
                 <button
-                  onClick={() => handleCreateFolder("situational")}
-                  className="px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-medium transition-colors"
+                  onClick={handleSeedWorkspace}
+                  className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-medium transition-colors"
                 >
-                  ➕ ジャンルを追加
+                  🌱 サンプルデータ作成
                 </button>
               </div>
             )}
 
-            {situationalFolders.map((folderData: any) => (
-              <div key={folderData.folder.id} className="mb-3">
-                <button
-                  onClick={() => toggleSituationalFolder(folderData.folder.id)}
-                  className="w-full px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium text-left flex items-center justify-between transition-colors"
-                >
-                  <span>{folderData.folder.name}</span>
-                  <span className="text-sm">
-                    {expandedSituationalFolders.has(folderData.folder.id) ? "▼" : "▶"}
-                  </span>
-                </button>
+            <div className="space-y-2">
+              {displayItems.map((item) => {
+                // 子トーク（next_item_idで参照されているもの）を判定
+                const isChild = responses.some((r) => r.next_item_id === item.id);
+                const branchCount = branchCounts.get(item.id) || 0;
 
-                {expandedSituationalFolders.has(folderData.folder.id) && (
-                  <div className="mt-2 space-y-2 ml-2">
-                    {folderData.items.map((item: ScriptItem) => (
-                      <button
-                        key={item.id}
-                        onClick={() => handleSituationalItemClick(item)}
-                        className="w-full px-3 py-2 bg-white hover:bg-orange-50 border border-gray-200 hover:border-orange-300 rounded-lg text-left text-sm transition-all"
-                      >
-                        <div className="font-medium text-gray-800">{item.title}</div>
-                        <div className="text-xs text-gray-500 mt-1 line-clamp-2">
-                          {item.content.substring(0, 60)}...
-                        </div>
-                      </button>
-                    ))}
-                    <button
-                      onClick={() => handleCreateItem(folderData.folder.id)}
-                      className="w-full px-3 py-2 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-lg text-sm font-medium text-orange-700 transition-colors"
-                    >
-                      ＋ トークを追加
-                    </button>
-                  </div>
-                )}
-              </div>
-            ))}
-
-            {situationalFolders.length > 0 && (
-              <button
-                onClick={() => handleCreateFolder("situational")}
-                className="w-full mt-4 px-4 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-lg font-medium transition-colors"
-              >
-                ➕ ジャンルを追加
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-
-      {/* カスタマイズモーダル */}
-      {showCustomizeModal && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-          onClick={() => setShowCustomizeModal(false)}
-        >
-          <div
-            className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full max-h-[80vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-2xl font-bold text-gray-800 mb-4">
-              ⚙️ 武器庫の表示設定
-            </h2>
-            <p className="text-sm text-gray-600 mb-6">
-              右ペインに表示するジャンルを選択してください
-            </p>
-
-            <div className="space-y-3">
-              {allFolders
-                .filter((f) => f.folder_type === "situational")
-                .map((folder) => (
-                  <label
-                    key={folder.id}
-                    className="flex items-center gap-3 p-3 bg-gray-50 hover:bg-gray-100 rounded-lg cursor-pointer transition-colors"
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => handleSelectItem(item.id)}
+                    className={`w-full text-left px-4 py-3 rounded-lg transition-all ${
+                      selectedItemId === item.id
+                        ? activeTab === "base"
+                          ? "bg-blue-100 border-2 border-blue-500 shadow-md"
+                          : "bg-orange-100 border-2 border-orange-500 shadow-md"
+                        : "bg-gray-50 hover:bg-gray-100 border border-gray-200"
+                    } ${isChild ? "ml-6" : ""}`}
                   >
-                    <input
-                      type="checkbox"
-                      checked={folder.is_visible_in_sidebar === 1}
-                      onChange={(e) => handleToggleVisibility(folder.id, e.target.checked)}
-                      className="w-5 h-5 text-blue-600 rounded focus:ring-2 focus:ring-blue-500"
-                    />
-                    <span className="font-medium text-gray-800">{folder.name}</span>
-                  </label>
-                ))}
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="font-medium text-gray-800">{item.title}</div>
+                      {branchCount > 0 && (
+                        <span className="px-2 py-0.5 bg-green-100 text-green-700 rounded-full text-xs font-bold">
+                          分岐 {branchCount}
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-xs text-gray-500 mt-1 line-clamp-2">
+                      {item.content.substring(0, 50)}...
+                    </div>
+                    {item.hearing_purpose && (
+                      <div className="text-xs text-blue-600 mt-1 line-clamp-1">
+                        🎯 {item.hearing_purpose.substring(0, 30)}...
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
             </div>
-
-            <button
-              onClick={() => setShowCustomizeModal(false)}
-              className="w-full mt-6 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-            >
-              完了
-            </button>
           </div>
         </div>
-      )}
 
-      {/* オーバーレイ（右ペインのアイテム表示） */}
-      {overlayItem && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-          onClick={() => setOverlayItem(null)}
-        >
-          <div
-            className="bg-white rounded-xl shadow-2xl p-8 max-w-3xl w-full max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {!editingItem ? (
-              <>
-                <div className="flex items-start justify-between mb-6">
-                  <h2 className="text-2xl font-bold text-gray-800">{overlayItem.title}</h2>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => handleEditClick(overlayItem)}
-                      className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
-                    >
-                      ✏️ 編集
-                    </button>
-                    <button
-                      onClick={() => setOverlayItem(null)}
-                      className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg text-sm font-medium transition-colors"
-                    >
-                      ✖️
-                    </button>
+        {/* 右ペイン: 詳細編集 */}
+        <div className="flex-1 overflow-y-auto p-6">
+          {!selectedItem ? (
+            <div className="h-full flex items-center justify-center">
+              <div className="text-center text-gray-500">
+                <span className="text-6xl block mb-4">👈</span>
+                <p className="text-lg">左からトークを選択してください</p>
+              </div>
+            </div>
+          ) : (
+            <div className="max-w-4xl mx-auto">
+              {/* 3層構造の編集UI */}
+              <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-gray-800">トークの編集</h2>
+                  {/* 保存状態インジケーター */}
+                  <div className="flex items-center gap-2">
+                    {saveStatus === "saving" && (
+                      <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm font-medium flex items-center gap-1">
+                        <span className="animate-spin">⏳</span> 保存中...
+                      </span>
+                    )}
+                    {saveStatus === "saved" && (
+                      <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium flex items-center gap-1">
+                        <span>✅</span> 保存完了
+                      </span>
+                    )}
+                    {saveStatus === "error" && (
+                      <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm font-medium flex items-center gap-1">
+                        <span>❌</span> エラー
+                      </span>
+                    )}
                   </div>
                 </div>
 
-                <div className="prose max-w-none">
-                  <p className="text-gray-700 whitespace-pre-wrap text-lg leading-relaxed">
-                    {overlayItem.content}
-                  </p>
-                </div>
+                <p className="text-sm text-gray-600 mb-6">
+                  💡 入力後、自動的に保存されます（1秒後）
+                </p>
 
-                {overlayItem.strategy_note && (
-                  <div className="mt-6 p-4 bg-purple-50 rounded-lg border-2 border-purple-200">
-                    <h3 className="font-bold text-purple-800 mb-2">💡 戦略メモ</h3>
-                    <p className="text-purple-700 whitespace-pre-wrap">
-                      {overlayItem.strategy_note}
-                    </p>
-                  </div>
-                )}
-
-                {overlayItem.next_move_hint && (
-                  <div className="mt-4 p-4 bg-green-50 rounded-lg border-2 border-green-200">
-                    <h3 className="font-bold text-green-800 mb-2">➡️ 次の一手</h3>
-                    <p className="text-green-700 whitespace-pre-wrap">
-                      {overlayItem.next_move_hint}
-                    </p>
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                <h2 className="text-2xl font-bold text-gray-800 mb-6">編集モード</h2>
-
-                <div className="space-y-4">
+                <div className="space-y-6">
+                  {/* タイトル */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       タイトル
                     </label>
                     <input
                       type="text"
-                      value={editingItem.title}
-                      onChange={(e) =>
-                        setEditingItem({ ...editingItem, title: e.target.value })
-                      }
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                      value={editingTitle}
+                      onChange={(e) => setEditingTitle(e.target.value)}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none"
+                      placeholder="例: 時間確認、課題のヒアリング"
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      トーク内容
+                  {/* 【1】ヒアリングすべき内容 */}
+                  <div className="border-l-4 border-blue-500 pl-4 bg-blue-50 p-4 rounded-r-lg">
+                    <label className="block text-sm font-bold text-blue-700 mb-2 flex items-center gap-2">
+                      <span className="text-xl">🎯</span>
+                      【1】ヒアリングすべき内容 / 目的
                     </label>
                     <textarea
-                      value={editingItem.content}
-                      onChange={(e) =>
-                        setEditingItem({ ...editingItem, content: e.target.value })
-                      }
-                      rows={10}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      💡 戦略メモ（任意）
-                    </label>
-                    <textarea
-                      value={editingItem.strategy_note || ""}
-                      onChange={(e) =>
-                        setEditingItem({ ...editingItem, strategy_note: e.target.value })
-                      }
+                      value={editingHearingPurpose}
+                      onChange={(e) => setEditingHearingPurpose(e.target.value)}
                       rows={3}
-                      placeholder="なぜこのトークが効くのか..."
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none"
+                      placeholder="例: 現状の集客ルートを確認する、時間的余裕を確認する"
+                      className="w-full px-4 py-3 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none"
                     />
                   </div>
 
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      ➡️ 次の一手（任意）
+                  {/* 【2】実際の聞き方 */}
+                  <div className="border-l-4 border-green-500 pl-4 bg-green-50 p-4 rounded-r-lg">
+                    <label className="block text-sm font-bold text-green-700 mb-2 flex items-center gap-2">
+                      <span className="text-xl">🗣️</span>
+                      【2】実際の聞き方（トーク本文）
                     </label>
                     <textarea
-                      value={editingItem.next_move_hint || ""}
-                      onChange={(e) =>
-                        setEditingItem({ ...editingItem, next_move_hint: e.target.value })
-                      }
-                      rows={2}
-                      placeholder="次に何を聞くべきか..."
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none"
+                      value={editingContent}
+                      onChange={(e) => setEditingContent(e.target.value)}
+                      rows={8}
+                      placeholder="例: 今、2-3分ほどお時間よろしいでしょうか？"
+                      className="w-full px-4 py-3 border-2 border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent outline-none resize-none text-lg"
                     />
                   </div>
 
-                  <div className="flex gap-3 pt-4">
-                    <button
-                      onClick={handleSaveEdit}
-                      className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
+                  {/* 【3】トップの狙い */}
+                  <div className="border-l-4 border-purple-500 pl-4 bg-purple-50 p-4 rounded-r-lg">
+                    <label className="block text-sm font-bold text-purple-700 mb-2 flex items-center gap-2">
+                      <span className="text-xl">💡</span>
+                      【3】トップの狙い（戦略メモ）
+                    </label>
+                    <textarea
+                      value={editingStrategyNote}
+                      onChange={(e) => setEditingStrategyNote(e.target.value)}
+                      rows={4}
+                      placeholder="例: 具体的な時間を提示することで、相手は「それくらいなら...」と思いやすい"
+                      className="w-full px-4 py-3 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none resize-none"
+                    />
+                  </div>
+
+                  {/* カテゴリ選択 */}
+                  <div className="border-l-4 border-indigo-500 pl-4 bg-indigo-50 p-4 rounded-r-lg">
+                    <label className="block text-sm font-bold text-indigo-700 mb-2 flex items-center gap-2">
+                      <span className="text-xl">📂</span>
+                      カテゴリ（ジャンル分け）
+                    </label>
+                    <select
+                      value={editingCategoryId}
+                      onChange={(e) => {
+                        setEditingCategoryId(e.target.value);
+                        handleQuickSave({ category_id: e.target.value });
+                      }}
+                      className="w-full px-4 py-3 border-2 border-indigo-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent outline-none"
                     >
-                      💾 保存
-                    </button>
-                    <button
-                      onClick={() => setEditingItem(null)}
-                      className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium transition-colors"
-                    >
-                      ✖️ キャンセル
-                    </button>
+                      <option value="">未分類</option>
+                      {categories.map((cat) => (
+                        <option key={cat.id} value={cat.id}>
+                          {cat.name}
+                        </option>
+                      ))}
+                    </select>
+                    <p className="text-xs text-indigo-600 mt-2">
+                      💡 カテゴリを設定すると、コール画面で分類表示されます
+                    </p>
+                  </div>
+
+                  {/* Quick Response設定 */}
+                  <div className="border-l-4 border-orange-500 pl-4 bg-orange-50 p-4 rounded-r-lg">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <label className="block text-sm font-bold text-orange-700 mb-1 flex items-center gap-2">
+                          <span className="text-xl">🛡️</span>
+                          Quick Response（常備武器）に表示
+                        </label>
+                        <p className="text-xs text-orange-600">
+                          ONにすると、コール画面の右側に常時表示されます（汎用性が高いトーク向け）
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const newValue = editingIsQuickResponse === 1 ? 0 : 1;
+                          setEditingIsQuickResponse(newValue);
+                          handleQuickSave({ is_quick_response: newValue });
+                        }}
+                        className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
+                          editingIsQuickResponse === 1 ? "bg-orange-600" : "bg-gray-300"
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
+                            editingIsQuickResponse === 1 ? "translate-x-7" : "translate-x-1"
+                          }`}
+                        />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </>
-            )}
-          </div>
-        </div>
-      )}
-
-      {/* 編集モーダル（中央ペインのアイテム用） */}
-      {editingItem && !overlayItem && (
-        <div
-          className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
-          onClick={() => setEditingItem(null)}
-        >
-          <div
-            className="bg-white rounded-xl shadow-2xl p-8 max-w-3xl w-full max-h-[90vh] overflow-y-auto"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="text-2xl font-bold text-gray-800 mb-6">編集モード</h2>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  タイトル
-                </label>
-                <input
-                  type="text"
-                  value={editingItem.title}
-                  onChange={(e) =>
-                    setEditingItem({ ...editingItem, title: e.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  トーク内容
-                </label>
-                <textarea
-                  value={editingItem.content}
-                  onChange={(e) =>
-                    setEditingItem({ ...editingItem, content: e.target.value })
-                  }
-                  rows={10}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none"
-                />
-              </div>
+              {/* 分岐管理UI */}
+              <div className="bg-white rounded-xl shadow-lg p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold text-gray-800">
+                    🌳 顧客の返答パターンと分岐
+                  </h2>
+                  <button
+                    onClick={handleAddResponse}
+                    className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    ➕ 顧客の想定返答を追加
+                  </button>
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  💡 戦略メモ（任意）
-                </label>
-                <textarea
-                  value={editingItem.strategy_note || ""}
-                  onChange={(e) =>
-                    setEditingItem({ ...editingItem, strategy_note: e.target.value })
-                  }
-                  rows={3}
-                  placeholder="なぜこのトークが効くのか..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none"
-                />
-              </div>
+                <p className="text-sm text-gray-600 mb-4">
+                  💡 顧客が「こう言ったら、こう返す」というパターンを設定してください。
+                  コール画面では、これらがボタンとして表示されます。
+                </p>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  ➡️ 次の一手（任意）
-                </label>
-                <textarea
-                  value={editingItem.next_move_hint || ""}
-                  onChange={(e) =>
-                    setEditingItem({ ...editingItem, next_move_hint: e.target.value })
-                  }
-                  rows={2}
-                  placeholder="次に何を聞くべきか..."
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none"
-                />
-              </div>
+                {responses.length === 0 && (
+                  <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed border-gray-300">
+                    <p className="text-gray-500 mb-4">
+                      まだ返答パターンがありません
+                    </p>
+                    <button
+                      onClick={handleAddResponse}
+                      className="px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium transition-colors"
+                    >
+                      ➕ 最初の返答パターンを追加
+                    </button>
+                  </div>
+                )}
 
-              <div className="flex gap-3 pt-4">
-                <button
-                  onClick={handleSaveEdit}
-                  className="flex-1 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors"
-                >
-                  💾 保存
-                </button>
-                <button
-                  onClick={() => setEditingItem(null)}
-                  className="px-6 py-3 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-medium transition-colors"
-                >
-                  ✖️ キャンセル
-                </button>
+                <div className="space-y-4">
+                  {responses.map((response, index) => {
+                    const nextItem = response.next_item_id
+                      ? allItems.find((item) => item.id === response.next_item_id)
+                      : null;
+
+                    return (
+                      <div
+                        key={response.id}
+                        className="border-2 border-gray-200 rounded-lg p-4 hover:border-purple-300 transition-colors"
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <span className="px-2 py-1 bg-orange-100 text-orange-700 rounded text-xs font-bold">
+                                顧客の返答 #{index + 1}
+                              </span>
+                            </div>
+                            <p className="text-lg font-semibold text-gray-800">
+                              「{response.response_text}」
+                            </p>
+                          </div>
+                          <button
+                            onClick={() => handleDeleteResponse(response.id)}
+                            className="px-3 py-1 bg-red-100 hover:bg-red-200 text-red-700 rounded text-sm font-medium transition-colors"
+                          >
+                            🗑️ 削除
+                          </button>
+                        </div>
+
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                          <p className="text-sm font-semibold text-gray-700 mb-2">
+                            ↓ この返答が来たら、次に表示するトーク:
+                          </p>
+
+                          {nextItem ? (
+                            <div className="p-3 bg-green-50 border-2 border-green-300 rounded-lg">
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="font-semibold text-green-800">
+                                    {nextItem.title}
+                                  </p>
+                                  <p className="text-sm text-green-600 mt-1">
+                                    {nextItem.content.substring(0, 60)}...
+                                  </p>
+                                </div>
+                                <button
+                                  onClick={() => handleSelectItem(nextItem.id)}
+                                  className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm font-medium transition-colors"
+                                >
+                                  編集 →
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              <button
+                                onClick={() => handleCreateBranchTalk(response.id)}
+                                className="w-full px-4 py-3 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg font-medium transition-colors"
+                              >
+                                🆕 新しいトークを分岐先に作成する
+                              </button>
+
+                              {/* 既存トーク選択UI（グループ化） */}
+                              <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                <p className="text-sm font-medium text-gray-700 mb-2">
+                                  📋 既存のトークから選ぶ:
+                                </p>
+                                
+                                {/* 基本シナリオ */}
+                                {groupedItems.base.length > 0 && (
+                                  <div className="mb-3">
+                                    <p className="text-xs font-bold text-blue-600 mb-1">
+                                      📖 基本シナリオ
+                                    </p>
+                                    <select
+                                      onChange={(e) => {
+                                        if (e.target.value) {
+                                          handleSelectExistingTalk(response.id, e.target.value);
+                                        }
+                                      }}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                                      defaultValue=""
+                                    >
+                                      <option value="">選択してください...</option>
+                                      {groupedItems.base.map((item) => (
+                                        <option key={item.id} value={item.id}>
+                                          {item.title}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                )}
+
+                                {/* 武器庫 */}
+                                {groupedItems.situational.length > 0 && (
+                                  <div>
+                                    <p className="text-xs font-bold text-orange-600 mb-1">
+                                      🛡️ 武器庫
+                                    </p>
+                                    <select
+                                      onChange={(e) => {
+                                        if (e.target.value) {
+                                          handleSelectExistingTalk(response.id, e.target.value);
+                                        }
+                                      }}
+                                      className="w-full px-3 py-2 border border-gray-300 rounded text-sm focus:ring-2 focus:ring-orange-500 outline-none"
+                                      defaultValue=""
+                                    >
+                                      <option value="">選択してください...</option>
+                                      {groupedItems.situational.map((item) => (
+                                        <option key={item.id} value={item.id}>
+                                          {item.title}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
