@@ -29,6 +29,7 @@ export default function CallPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
   const [expandedPath, setExpandedPath] = useState<ScriptItem[]>([]);
+  const [expandedCategoryId, setExpandedCategoryId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   const loadData = async () => {
@@ -357,18 +358,40 @@ export default function CallPage() {
               {Object.keys(groupedQuickResponse).map((categoryId) => {
                 const category = categories.find((c) => c.id === categoryId);
                 const categoryName = category ? category.name : "未分類";
+                const categoryColor = category?.color || "#6B7280";
                 const items = groupedQuickResponse[categoryId];
+                const isExpanded = expandedCategoryId === categoryId;
 
                 return (
-                  <div key={categoryId} className="mb-4">
-                    <h3 className="text-xs font-bold text-gray-700 mb-2 px-2 py-1 bg-gray-100 rounded">
-                      {categoryName}
-                    </h3>
-                    <div className="space-y-2">
-                      {items.map((item) => (
-                        <QuickResponseButton key={item.id} item={item} />
-                      ))}
-                    </div>
+                  <div key={categoryId} className="mb-2">
+                    {/* アコーディオンヘッダー */}
+                    <button
+                      onClick={() => setExpandedCategoryId(isExpanded ? null : categoryId)}
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all hover:bg-orange-50"
+                      style={{
+                        backgroundColor: isExpanded ? `${categoryColor}15` : 'transparent',
+                        borderLeft: `4px solid ${categoryColor}`,
+                      }}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">{isExpanded ? "▼" : "▶"}</span>
+                        <h3 className="text-sm font-bold text-gray-800">
+                          {categoryName}
+                        </h3>
+                        <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-xs font-bold">
+                          {items.length}
+                        </span>
+                      </div>
+                    </button>
+
+                    {/* アコーディオンコンテンツ */}
+                    {isExpanded && (
+                      <div className="mt-2 ml-3 space-y-2 animate-slideDown">
+                        {items.map((item) => (
+                          <QuickResponseButton key={item.id} item={item} />
+                        ))}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -390,6 +413,19 @@ export default function CallPage() {
         }
         .animate-fadeIn {
           animation: fadeIn 0.5s ease-out;
+        }
+        @keyframes slideDown {
+          from {
+            opacity: 0;
+            max-height: 0;
+          }
+          to {
+            opacity: 1;
+            max-height: 500px;
+          }
+        }
+        .animate-slideDown {
+          animation: slideDown 0.3s ease-out;
         }
       `}</style>
     </div>

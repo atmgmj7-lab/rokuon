@@ -1,4 +1,5 @@
 import AudioUploader from "@/src/components/recording/AudioUploader";
+import RecordingList from "@/src/components/recording/RecordingList";
 import Link from "next/link";
 
 export default function Home() {
@@ -56,10 +57,20 @@ export default function Home() {
               </div>
             </div>
           </div>
+
+          {/* 録音機能 */}
+          <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-lg p-6 mb-8">
+            <h2 className="text-xl font-bold text-gray-800 mb-4">🎙️ 音声アップロード</h2>
+            <p className="text-sm text-gray-600 mb-4">
+              テレアポ音声をアップロードして自動文字起こしを行います
+            </p>
+            <AudioUploader />
+          </div>
         </header>
-        
-        <main>
-          <AudioUploader />
+
+        {/* 録音履歴 */}
+        <main className="max-w-5xl mx-auto">
+          <RecordingList />
         </main>
       </div>
     </div>
