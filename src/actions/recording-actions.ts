@@ -308,3 +308,44 @@ export async function getRecordingById(recordingId: string) {
     return null;
   }
 }
+
+// 録音の文字起こしを取得
+export async function getTranscriptByRecordingId(recordingId: string) {
+  try {
+    const result = await db.execute({
+      sql: "SELECT * FROM transcripts WHERE recording_id = ? ORDER BY created_at DESC LIMIT 1",
+      args: [recordingId],
+    });
+
+    if (result.rows.length === 0) {
+      return null;
+    }
+
+    const row = result.rows[0];
+    return {
+      id: row.id as string,
+      recording_id: row.recording_id as string,
+      content: row.content as string,
+      language: row.language as string | null,
+      created_at: row.created_at as number,
+    };
+  } catch (error) {
+    console.error("❌ 文字起こし取得エラー:", error);
+    return null;
+  }
+}
+
+// 文字起こしを更新
+export async function updateTranscript(transcriptId: string, content: string) {
+  try {
+    await db.execute({
+      sql: "UPDATE transcripts SET content = ? WHERE id = ?",
+      args: [content, transcriptId],
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("❌ 文字起こし更新エラー:", error);
+    return { success: false, error: error instanceof Error ? error.message : "不明なエラー" };
+  }
+}

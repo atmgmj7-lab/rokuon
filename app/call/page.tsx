@@ -111,6 +111,19 @@ export default function CallPage() {
     loadData();
   }, []);
 
+  // データをリロードする関数
+  const handleReload = async () => {
+    await loadData();
+    // チェック項目の状態をリセット
+    setCheckedItems(new Set());
+    setDynamicComponents([]);
+    // 選択中のタブを再適用
+    if (activeTab !== "main_scenario") {
+      const components = await getComponentsBySituation(activeTab);
+      setSituationComponents(components);
+    }
+  };
+
   const displayItems =
     activeTab === "main_scenario"
       ? [...mainScenarioItems, ...dynamicComponents]
@@ -145,11 +158,18 @@ export default function CallPage() {
             </p>
           </div>
           <div className="flex gap-2">
+            <button
+              onClick={handleReload}
+              className="px-4 py-2 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+              title="ワークスペースの変更を反映"
+            >
+              🔄 更新
+            </button>
             <Link
               href="/workspace"
               className="px-4 py-2 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg text-sm font-medium transition-colors"
             >
-              📁 ワークスペースへ
+              🛠️ ワークスペースへ
             </Link>
             <Link
               href="/"

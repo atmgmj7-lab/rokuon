@@ -1142,7 +1142,7 @@ function TimelineManager({
   checkItems: CheckItem[];
   onUpdate: () => void;
 }) {
-  const [selectedSituation, setSelectedSituation] = useState<string>("");
+  const [selectedSituations, setSelectedSituations] = useState<Set<string>>(new Set());
   const [selectedTimeline, setSelectedTimeline] = useState<string>("");
   const [newTimelineTitle, setNewTimelineTitle] = useState("");
   const [timelineBlocks, setTimelineBlocks] = useState<ScriptItem[]>([]);
@@ -1164,17 +1164,30 @@ function TimelineManager({
   };
 
   const handleCreateTimeline = async () => {
-    if (!selectedSituation || !newTimelineTitle.trim()) {
+    if (selectedSituations.size === 0 || !newTimelineTitle.trim()) {
       alert("状況タグとタイトルを入力してください");
       return;
     }
 
-    const result = await createTimelineWithSituation(newTimelineTitle, selectedSituation, "");
+    // 最初の状況タグでタイムラインを作成
+    const firstSituation = Array.from(selectedSituations)[0];
+    const result = await createTimelineWithSituation(newTimelineTitle, firstSituation, "");
     if (result.success && result.timelineId) {
       setNewTimelineTitle("");
       onUpdate();
       setSelectedTimeline(result.timelineId);
     }
+  };
+
+  const handleToggleSituation = (situationId: string) => {
+    const newSelected = new Set(selectedSituations);
+    if (newSelected.has(situationId)) {
+      newSelected.delete(situationId);
+    } else {
+      newSelected.add(situationId);
+    }
+    setSelectedSituations(newSelected);
+    setSelectedTimeline("");
   };
 
   const handleAddBlock = async (talkId: string) => {
@@ -1211,8 +1224,8 @@ function TimelineManager({
     onUpdate();
   };
 
-  const filteredTimelines = selectedSituation
-    ? timelines.filter((tl) => tl.situation_id === selectedSituation)
+  const filteredTimelines = selectedSituations.size > 0
+    ? timelines.filter((tl) => selectedSituations.has(tl.situation_id || ""))
     : timelines;
 
   const addedTalkIds = new Set(timelineBlocks.map((b) => b.id));
@@ -1226,27 +1239,57 @@ function TimelineManager({
           💡 状況タグを選択し、そのフェーズで使うトークとチェック項目を組み合わせます
         </p>
 
-        {/* Step 1: 状況タグ選択 */}
+        {/* Step 1: 状況タグ選択（複数選択可） */}
         <div className="bg-blue-50 rounded-lg p-4 mb-6">
-          <h3 className="font-bold text-blue-800 mb-3">Step 1: 状況タグを選択</h3>
-          <select
-            value={selectedSituation}
-            onChange={(e) => {
-              setSelectedSituation(e.target.value);
-              setSelectedTimeline("");
-            }}
-            className="w-full px-4 py-3 border-2 border-blue-300 rounded-lg"
-          >
-            <option value="">選択してください...</option>
-            {situations.map((sit) => (
-              <option key={sit.id} value={sit.id}>
-                {sit.icon} {sit.name}
-              </option>
-            ))}
-          </select>
+          <h3 className="font-bold text-blue-800 mb-3">Step 1: 状況タグを選択（複数選択可）</h3>
+          <p className="text-sm text-blue-700 mb-3">
+            複数の状況タグを選択できます。選択したタグに紐づくタイムラインが表示されます。
+          </p>
+          {situations.length === 0 && (
+            <p className="text-center py-4 text-gray-500 text-sm">
+              まだ状況タグがありません。「状況タグ管理」で追加してください。
+            </p>
+          )}
+          <div className="grid grid-cols-2 gap-2">
+            {situations.map((sit) => {
+              const isSelected = selectedSituations.has(sit.id);
+              return (
+                <button
+                  key={sit.id}
+                  onClick={() => handleToggleSituation(sit.id)}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 transition-all ${
+                    isSelected
+                      ? "bg-blue-100 border-blue-500 ring-2 ring-blue-300"
+                      : "bg-white border-gray-200 hover:border-blue-300"
+                  }`}
+                  style={{
+                    borderLeftWidth: "6px",
+                    borderLeftColor: sit.color,
+                  }}
+                >
+                  <span className={`text-2xl ${isSelected ? "text-blue-600" : "text-gray-400"}`}>
+                    {isSelected ? "✅" : "⬜"}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">{sit.icon}</span>
+                    <span className={`font-bold ${isSelected ? "text-blue-800" : "text-gray-700"}`}>
+                      {sit.name}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          {selectedSituations.size > 0 && (
+            <div className="mt-3 p-3 bg-blue-100 rounded-lg">
+              <p className="text-sm font-bold text-blue-800">
+                選択中: {selectedSituations.size}個の状況タグ
+              </p>
+            </div>
+          )}
         </div>
 
-        {selectedSituation && (
+        {selectedSituations.size > 0 && (
           <>
             {/* Step 2: タイムライン選択 or 新規作成 */}
             <div className="bg-green-50 rounded-lg p-4 mb-6">
