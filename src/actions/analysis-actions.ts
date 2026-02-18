@@ -70,7 +70,7 @@ export async function analyzeFeedbackPair(caseId: string, feedbackId: string) {
     const feedbackAudioBuffer = await readFile(feedbackAudioPath);
 
     // Gemini 1.5 Proモデルを使用
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-pro" });
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     // マルチモーダルプロンプト
     const prompt = `

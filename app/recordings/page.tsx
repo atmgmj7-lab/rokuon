@@ -25,15 +25,23 @@ export default async function RecordingsPage() {
         <header className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-4xl font-bold text-gray-800">📼 録音一覧</h1>
-            <Link
-              href="/"
-              className="px-4 py-2 bg-gray-200 hover:bg-gray-300 rounded-lg font-medium transition-colors"
-            >
-              ← ホームへ
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              <Link
+                href="/recordings/dictionary"
+                className="inline-flex items-center gap-1 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg font-medium shadow-md transition-all"
+              >
+                📖 ユーザー辞書
+              </Link>
+              <Link
+                href="/"
+                className="inline-flex items-center px-4 py-2.5 bg-gray-200 hover:bg-gray-300 rounded-lg font-medium transition-colors"
+              >
+                ← ホームへ
+              </Link>
+            </div>
           </div>
           <p className="text-gray-600">
-            アップロードされた録音データと指導音声を管理します
+            アップロードされた録音データをIDで管理。課題音声に対してフィードバック音声を紐付けできます
           </p>
         </header>
 

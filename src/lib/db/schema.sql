@@ -268,3 +268,19 @@ CREATE INDEX IF NOT EXISTS idx_situation_tags_category ON situation_tags(categor
 CREATE INDEX IF NOT EXISTS idx_item_situations_item ON item_situations(item_id);
 CREATE INDEX IF NOT EXISTS idx_item_situations_tag ON item_situations(situation_tag_id);
 CREATE INDEX IF NOT EXISTS idx_item_responses_parent ON item_responses(parent_item_id, sort_order);
+
+-- ========================================
+-- Phase 1: ユーザー辞書（文字起こし精度向上）
+-- ========================================
+
+-- 企業/ユーザー固有の専門用語を管理
+CREATE TABLE IF NOT EXISTS user_dictionaries (
+  id TEXT PRIMARY KEY,
+  term TEXT NOT NULL,
+  reading TEXT,
+  category TEXT,
+  created_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_dictionaries_term ON user_dictionaries(term);
+CREATE INDEX IF NOT EXISTS idx_user_dictionaries_category ON user_dictionaries(category);

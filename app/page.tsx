@@ -1,5 +1,4 @@
 import AudioUploader from "@/src/components/recording/AudioUploader";
-import RecordingList from "@/src/components/recording/RecordingList";
 import Link from "next/link";
 
 export default function Home() {
@@ -16,7 +15,6 @@ export default function Home() {
 
           {/* 機能メニュー */}
           <div className="flex gap-4 justify-center mb-8 flex-wrap">
-            {/* メイン機能（推奨） */}
             <Link
               href="/call"
               className="px-10 py-6 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white rounded-2xl font-bold text-lg transition-all shadow-2xl hover:shadow-3xl animate-pulse ring-4 ring-orange-300 transform hover:scale-105"
@@ -28,6 +26,12 @@ export default function Home() {
               className="px-10 py-6 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-2xl font-bold text-lg transition-all shadow-2xl hover:shadow-3xl ring-4 ring-indigo-300 transform hover:scale-105"
             >
               🛠️ ワークスペース
+            </Link>
+            <Link
+              href="/recordings"
+              className="px-10 py-6 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white rounded-2xl font-bold text-lg transition-all shadow-2xl hover:shadow-3xl ring-4 ring-blue-300 transform hover:scale-105"
+            >
+              📚 録音履歴
             </Link>
           </div>
 
@@ -65,13 +69,22 @@ export default function Home() {
               テレアポ音声をアップロードして自動文字起こしを行います
             </p>
             <AudioUploader />
+
+            {/* 履歴を見るボタン */}
+            <div className="mt-6 pt-6 border-t-2 border-gray-200">
+              <Link
+                href="/recordings"
+                className="flex items-center justify-center gap-3 w-full px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold transition-all shadow-lg hover:shadow-xl"
+              >
+                <span className="text-2xl">📚</span>
+                <span>履歴を見る</span>
+              </Link>
+              <p className="text-xs text-gray-500 mt-2 text-center">
+                録音一覧・ID管理・フィードバック音声の紐付け
+              </p>
+            </div>
           </div>
         </header>
-
-        {/* 録音履歴 */}
-        <main className="max-w-5xl mx-auto">
-          <RecordingList />
-        </main>
       </div>
     </div>
   );

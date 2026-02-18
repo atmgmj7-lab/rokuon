@@ -1,14 +1,15 @@
 "use server";
 
 import { db } from "@/src/lib/db";
+import { getDictionaries } from "@/src/actions/dictionary-actions";
+import { formatCallTranscript, mergeFeedbackIntoTranscript } from "@/src/actions/format-actions";
 import { revalidatePath } from "next/cache";
-import { writeFile, mkdir } from "fs/promises";
+import { writeFile, mkdir, readFile } from "fs/promises";
 import { existsSync } from "fs";
 import path from "path";
 import OpenAI, { toFile } from "openai";
-import { readFile } from "fs/promises";
 
-const openai = new OpenAI({
+const openaiClient = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
@@ -63,19 +64,66 @@ export async function uploadAndTranscribe(formData: FormData) {
     console.log(`📁 ファイルパス: ${filePath}`);
     console.log(`📝 ファイル名: ${fileName}`);
     console.log(`📏 拡張子: ${extension}`);
-    
-    // ファイルを読み込んでtoFileヘルパーで渡す
+
+    // ユーザー辞書を取得し、prompt用にカンマ区切り文字列化
+    const dicts = await getDictionaries();
+    const customTerms = dicts.map((d) => d.term).join(", ");
+    const basePrompt =
+      "こんにちは。恐れ入ります、株式会社の〇〇と申します。よろしくお願いいたします。ローン、リース、受注、月額制、リフォーム、屋根工事、Googleマップ、SaaS、アポ、クロージング、架電、テーマ、導入、従量課金、固定費。";
+    const whisperPrompt = `${basePrompt} ${customTerms}`.trim();
+
     const fileBuffer = await readFile(filePath);
     const file = await toFile(fileBuffer, fileName, {
       type: getMimeType(extension),
     });
-    
-    const transcription = await openai.audio.transcriptions.create({
+
+    const transcription = await openaiClient.audio.transcriptions.create({
       file: file,
       model: "whisper-1",
       language: "ja",
-      prompt: "テレアポの逐語録です。フィラー（えー、あのー）は残しつつ、正確に書き起こして。",
+      prompt: whisperPrompt,
       response_format: "verbose_json",
+    });
+
+    const duration = transcription.duration ?? 0;
+
+    const rawTranscript = transcription as { text?: string; segments?: { start: number; end: number; text: string }[] };
+    let rawTranscriptText: string;
+    if (rawTranscript.segments && Array.isArray(rawTranscript.segments) && rawTranscript.segments.length > 0) {
+      rawTranscriptText = rawTranscript.segments
+        .map((s) => `[${s.start.toFixed(1)}s - ${s.end.toFixed(1)}s] ${(s.text ?? "").trim()}`)
+        .filter((line) => {
+          const afterBracket = line.indexOf("] ");
+          return afterBracket >= 0 && line.slice(afterBracket + 2).trim().length > 0;
+        })
+        .join("\n");
+      if (!rawTranscriptText.trim()) rawTranscriptText = rawTranscript.text ?? "";
+      console.log("📋 [DEBUG] Whisper segments使用: タイムスタンプ付きテキストをGeminiへ渡します");
+    } else {
+      rawTranscriptText = rawTranscript.text ?? "";
+      if (rawTranscriptText && duration > 0) {
+        rawTranscriptText = `[0.0s - ${duration.toFixed(1)}s] ${rawTranscriptText}`;
+        console.log("📋 [DEBUG] Whisper segmentsなし: 全体を [0.0s - Xs] でラップしてGeminiへ渡します");
+      }
+    }
+
+    // Geminiで整形（JSON配列化・タイムスタンプ付き）
+    let contentToSave = rawTranscriptText;
+    const formatResult = await formatCallTranscript(rawTranscriptText);
+    if (formatResult.success && formatResult.json) {
+      contentToSave = formatResult.json;
+    }
+    console.log("💾 [DEBUG] DB保存前のフォーマット結果:", {
+      success: formatResult.success,
+      isJsonArray: (() => {
+        try {
+          const p = JSON.parse(contentToSave);
+          return Array.isArray(p);
+        } catch {
+          return false;
+        }
+      })(),
+      preview: contentToSave?.slice(0, 200),
     });
 
     console.log("✅ 文字起こし完了");
@@ -97,7 +145,7 @@ export async function uploadAndTranscribe(formData: FormData) {
         title || originalName,
         description || "",
         audioUrl,
-        Math.floor(transcription.duration || 0),
+        Math.floor(duration),
         fileSize,
         "case", // デフォルトは課題音声
         null, // parent_id
@@ -107,17 +155,11 @@ export async function uploadAndTranscribe(formData: FormData) {
       ],
     });
 
-    // transcriptsテーブルにデータを挿入
+    // transcriptsテーブルにデータを挿入（整形済みJSONを保存）
     await db.execute({
       sql: `INSERT INTO transcripts (id, recording_id, content, language, created_at)
             VALUES (?, ?, ?, ?, ?)`,
-      args: [
-        transcriptId,
-        recordingId,
-        transcription.text,
-        transcription.language || "ja",
-        now,
-      ],
+      args: [transcriptId, recordingId, contentToSave, "ja", now],
     });
 
     console.log("✅ データベースに保存完了");
@@ -131,7 +173,7 @@ export async function uploadAndTranscribe(formData: FormData) {
         recordingId,
         transcriptId,
         audioUrl,
-        transcript: transcription.text,
+        transcript: contentToSave,
       },
     };
   } catch (error) {
@@ -173,21 +215,50 @@ export async function uploadFeedback(formData: FormData, parentRecordingId: stri
     await writeFile(filePath, buffer);
     const fileSize = buffer.length;
 
-    // Whisper APIで文字起こし
+    // Whisper APIで文字起こし（指導音声・ユーザー辞書を注入）
     console.log("🎧 指導音声をWhisper APIで文字起こし中...");
-    
+
+    const dicts = await getDictionaries();
+    const customTerms = dicts.map((d) => d.term).join(", ");
+    const basePrompt =
+      "こんにちは。ここは〇〇と深掘りすべきです。恐れ入ります、もう少しヒアリングを増やしましょう。受注、ローン、リース、月額制、SaaS、アポ、クロージング、架電、テーマ、導入。";
+    const whisperPrompt = `${basePrompt} ${customTerms}`.trim();
+
     const fileBuffer = await readFile(filePath);
     const file = await toFile(fileBuffer, fileName, {
       type: getMimeType(extension),
     });
-    
-    const transcription = await openai.audio.transcriptions.create({
+
+    const transcription = await openaiClient.audio.transcriptions.create({
       file: file,
       model: "whisper-1",
       language: "ja",
-      prompt: "マネージャーによる指導音声です。新人へのフィードバック内容を正確に書き起こして。",
+      prompt: whisperPrompt,
       response_format: "verbose_json",
     });
+
+    const feedbackRawText = transcription.text;
+    const duration = transcription.duration ?? 0;
+
+    // 親録音の商談テキスト（整形済みJSON）を取得
+    const parentTranscriptResult = await db.execute({
+      sql: "SELECT content FROM transcripts WHERE recording_id = ? ORDER BY created_at DESC LIMIT 1",
+      args: [parentRecordingId],
+    });
+    const parentTranscriptContent =
+      parentTranscriptResult.rows.length > 0
+        ? (parentTranscriptResult.rows[0].content as string)
+        : "[]";
+
+    // Geminiでインライン結合
+    let contentToSave = feedbackRawText;
+    const mergeResult = await mergeFeedbackIntoTranscript(
+      parentTranscriptContent,
+      feedbackRawText
+    );
+    if (mergeResult.success && mergeResult.json) {
+      contentToSave = mergeResult.json;
+    }
 
     console.log("✅ 指導音声の文字起こし完了");
 
@@ -206,7 +277,7 @@ export async function uploadFeedback(formData: FormData, parentRecordingId: stri
         title || `指導音声_${originalName}`,
         description || "",
         audioUrl,
-        Math.floor(transcription.duration || 0),
+        Math.floor(duration),
         fileSize,
         "feedback", // 指導音声
         parentRecordingId, // 親の課題音声ID
@@ -216,17 +287,11 @@ export async function uploadFeedback(formData: FormData, parentRecordingId: stri
       ],
     });
 
-    // transcriptsテーブルにデータを挿入
+    // transcriptsテーブルにデータを挿入（マージ済みJSONを保存）
     await db.execute({
       sql: `INSERT INTO transcripts (id, recording_id, content, language, created_at)
             VALUES (?, ?, ?, ?, ?)`,
-      args: [
-        transcriptId,
-        recordingId,
-        transcription.text,
-        transcription.language || "ja",
-        now,
-      ],
+      args: [transcriptId, recordingId, contentToSave, "ja", now],
     });
 
     console.log("✅ 指導音声をデータベースに保存完了");
@@ -239,7 +304,7 @@ export async function uploadFeedback(formData: FormData, parentRecordingId: stri
         recordingId,
         transcriptId,
         audioUrl,
-        transcript: transcription.text,
+        transcript: contentToSave,
       },
     };
   } catch (error) {
@@ -268,6 +333,7 @@ export async function getAllRecordings() {
       recording_type: row.recording_type as string,
       parent_id: row.parent_id as string | null,
       category_id: row.category_id as string | null,
+      custom_id: (row as { custom_id?: string }).custom_id as string | undefined,
       created_at: row.created_at as number,
       updated_at: row.updated_at as number,
     }));
@@ -300,6 +366,7 @@ export async function getRecordingById(recordingId: string) {
       recording_type: row.recording_type as string,
       parent_id: row.parent_id as string | null,
       category_id: row.category_id as string | null,
+      custom_id: (row as { custom_id?: string }).custom_id as string | undefined,
       created_at: row.created_at as number,
       updated_at: row.updated_at as number,
     };
@@ -335,6 +402,22 @@ export async function getTranscriptByRecordingId(recordingId: string) {
   }
 }
 
+// 録音のcustom_idを更新
+export async function updateRecordingCustomId(recordingId: string, customId: string) {
+  try {
+    await db.execute({
+      sql: "UPDATE recordings SET custom_id = ?, updated_at = ? WHERE id = ?",
+      args: [customId || null, Date.now(), recordingId],
+    });
+    revalidatePath("/recordings");
+    revalidatePath("/");
+    return { success: true };
+  } catch (error) {
+    console.error("❌ 録音更新エラー:", error);
+    return { success: false, error: error instanceof Error ? error.message : "不明なエラー" };
+  }
+}
+
 // 文字起こしを更新
 export async function updateTranscript(transcriptId: string, content: string) {
   try {
@@ -343,6 +426,36 @@ export async function updateTranscript(transcriptId: string, content: string) {
       args: [content, transcriptId],
     });
 
+    return { success: true };
+  } catch (error) {
+    console.error("❌ 文字起こし更新エラー:", error);
+    return { success: false, error: error instanceof Error ? error.message : "不明なエラー" };
+  }
+}
+
+// 録音データを削除（transcripts は ON DELETE CASCADE で自動削除）
+export async function deleteRecording(recordingId: string) {
+  try {
+    await db.execute({
+      sql: "DELETE FROM recordings WHERE id = ?",
+      args: [recordingId],
+    });
+    revalidatePath("/recordings");
+    return { success: true };
+  } catch (error) {
+    console.error("❌ 録音削除エラー:", error);
+    return { success: false, error: error instanceof Error ? error.message : "不明なエラー" };
+  }
+}
+
+// 文字起こしの内容を更新（JSON文字列を直接保存）
+export async function updateTranscriptContent(transcriptId: string, newContent: string) {
+  try {
+    await db.execute({
+      sql: "UPDATE transcripts SET content = ? WHERE id = ?",
+      args: [newContent, transcriptId],
+    });
+    revalidatePath("/recordings");
     return { success: true };
   } catch (error) {
     console.error("❌ 文字起こし更新エラー:", error);
