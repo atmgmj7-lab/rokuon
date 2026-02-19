@@ -11,7 +11,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/src/lib/db";
 import { getDictionaries } from "@/src/actions/dictionary-actions";
 import { uploadToR2 } from "@/src/lib/r2";
-import OpenAI, { toFile } from "openai";
 
 function getMimeType(ext: string): string {
   const m: Record<string, string> = {
@@ -24,9 +23,32 @@ function getMimeType(ext: string): string {
   return m[ext.toLowerCase()] || "audio/webm";
 }
 
-const openaiClient = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+async function transcribeWithWhisper(
+  buffer: Buffer,
+  filename: string,
+  contentType: string,
+  prompt: string
+) {
+  const formData = new FormData();
+  formData.append("file", new Blob([buffer], { type: contentType }), filename);
+  formData.append("model", "whisper-1");
+  formData.append("language", "ja");
+  formData.append("prompt", prompt);
+
+  const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+    },
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Whisper API error: ${res.status} ${err}`);
+  }
+  return res.json();
+}
 
 export async function POST(request: NextRequest) {
   process.env.TMPDIR = "/tmp";
@@ -61,20 +83,18 @@ export async function POST(request: NextRequest) {
     const mimeType = getMimeType(fileExt);
     const audioUrl = await uploadToR2(buffer, fileName, mimeType);
 
-    const fileForWhisper = await toFile(buffer, fileName, { type: mimeType });
-
     const dicts = await getDictionaries();
     const customTerms = dicts.map((d) => d.term).join(", ");
     const whisperPrompt =
       "こんにちは。ここは〇〇と深掘りすべきです。恐れ入ります、もう少しヒアリングを増やしましょう。受注、ローン、リース、月額制、SaaS、アポ、クロージング、架電、テーマ、導入。";
     const prompt = `${whisperPrompt} ${customTerms}`.trim();
 
-    const transcription = await openaiClient.audio.transcriptions.create({
-      file: fileForWhisper,
-      model: "whisper-1",
-      language: "ja",
-      prompt,
-    });
+    const transcription = await transcribeWithWhisper(
+      buffer,
+      fileName,
+      mimeType,
+      prompt
+    );
 
     const text = transcription.text?.trim() ?? "";
 

@@ -14,7 +14,6 @@ import { getDictionaries } from "@/src/actions/dictionary-actions";
 import { getCorrectionTerms } from "@/src/actions/correction-actions";
 import { formatCallTranscript } from "@/src/actions/format-actions";
 import { uploadToR2 } from "@/src/lib/r2";
-import OpenAI, { toFile } from "openai";
 
 function getExtension(filename: string): string {
   const lastDot = filename.lastIndexOf(".");
@@ -34,9 +33,34 @@ function getMimeType(extension: string): string {
   return mimeTypes[extension.toLowerCase()] || "audio/mpeg";
 }
 
-const openaiClient = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+/** Whisper API をネイティブ fetch で呼び出し（toFile/File を経由しない） */
+async function transcribeWithWhisper(
+  buffer: Buffer,
+  filename: string,
+  contentType: string,
+  prompt: string
+) {
+  const formData = new FormData();
+  formData.append("file", new Blob([buffer], { type: contentType }), filename);
+  formData.append("model", "whisper-1");
+  formData.append("language", "ja");
+  formData.append("prompt", prompt);
+  formData.append("response_format", "verbose_json");
+
+  const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+    },
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Whisper API error: ${res.status} ${err}`);
+  }
+  return res.json();
+}
 
 export async function POST(request: NextRequest) {
   // 一時ファイルを /tmp に強制（Vercel で唯一書き込み可能なディレクトリ）
@@ -69,11 +93,6 @@ export async function POST(request: NextRequest) {
     // 1. R2 に直接アップロード（メモリ上の buffer のみ使用、fs 不使用）
     const audioUrl = await uploadToR2(buffer, objectName, contentType);
 
-    // 2. Whisper: OpenAI toFile で完全メモリ形式（ディスク書き込みゼロ）
-    const fileForWhisper = await toFile(buffer, objectName, {
-      type: contentType,
-    });
-
     const dicts = await getDictionaries();
     const correctionTerms = await getCorrectionTerms();
     const customTerms = [
@@ -86,13 +105,12 @@ export async function POST(request: NextRequest) {
       "こんにちは。恐れ入ります、株式会社の〇〇と申します。よろしくお願いいたします。ローン、リース、受注、月額制、リフォーム、屋根工事、Googleマップ、SaaS、アポ、クロージング、架電、テーマ、導入、従量課金、固定費。";
     const whisperPrompt = `${basePrompt} ${customTerms}`.trim();
 
-    const transcription = await openaiClient.audio.transcriptions.create({
-      file: fileForWhisper,
-      model: "whisper-1",
-      language: "ja",
-      prompt: whisperPrompt,
-      response_format: "verbose_json",
-    });
+    const transcription = await transcribeWithWhisper(
+      buffer,
+      objectName,
+      contentType,
+      whisperPrompt
+    );
 
     const duration = transcription.duration ?? 0;
     const rawTranscript = transcription as {

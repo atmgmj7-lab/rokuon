@@ -14,7 +14,6 @@ import { getDictionaries } from "@/src/actions/dictionary-actions";
 import { getCorrectionTerms } from "@/src/actions/correction-actions";
 import { mergeFeedbackIntoTranscript } from "@/src/actions/format-actions";
 import { uploadToR2 } from "@/src/lib/r2";
-import OpenAI, { toFile } from "openai";
 
 function getExtension(filename: string): string {
   const lastDot = filename.lastIndexOf(".");
@@ -35,9 +34,33 @@ function getMimeType(extension: string): string {
   return mimeTypes[extension.toLowerCase()] || "audio/webm";
 }
 
-const openaiClient = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
+async function transcribeWithWhisper(
+  buffer: Buffer,
+  filename: string,
+  contentType: string,
+  prompt: string
+) {
+  const formData = new FormData();
+  formData.append("file", new Blob([buffer], { type: contentType }), filename);
+  formData.append("model", "whisper-1");
+  formData.append("language", "ja");
+  formData.append("prompt", prompt);
+  formData.append("response_format", "verbose_json");
+
+  const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+    },
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(`Whisper API error: ${res.status} ${err}`);
+  }
+  return res.json();
+}
 
 export async function POST(request: NextRequest) {
   process.env.TMPDIR = "/tmp";
@@ -75,10 +98,6 @@ export async function POST(request: NextRequest) {
 
     const audioUrl = await uploadToR2(buffer, objectName, contentType);
 
-    const fileForWhisper = await toFile(buffer, objectName, {
-      type: contentType,
-    });
-
     const dicts = await getDictionaries();
     const correctionTerms = await getCorrectionTerms();
     const customTerms = [
@@ -91,13 +110,12 @@ export async function POST(request: NextRequest) {
       "こんにちは。ここは〇〇と深掘りすべきです。恐れ入ります、もう少しヒアリングを増やしましょう。受注、ローン、リース、月額制、SaaS、アポ、クロージング、架電、テーマ、導入。";
     const whisperPrompt = `${basePrompt} ${customTerms}`.trim();
 
-    const transcription = await openaiClient.audio.transcriptions.create({
-      file: fileForWhisper,
-      model: "whisper-1",
-      language: "ja",
-      prompt: whisperPrompt,
-      response_format: "verbose_json",
-    });
+    const transcription = await transcribeWithWhisper(
+      buffer,
+      objectName,
+      contentType,
+      whisperPrompt
+    );
 
     const feedbackRawText = transcription.text ?? "";
     const duration = transcription.duration ?? 0;
