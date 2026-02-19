@@ -6,8 +6,13 @@ import { getCorrectionTerms } from "@/src/actions/correction-actions";
 import { formatCallTranscript, mergeFeedbackIntoTranscript } from "@/src/actions/format-actions";
 import { uploadToR2 } from "@/src/lib/r2";
 import { revalidatePath } from "next/cache";
-import path from "path";
-import OpenAI, { toFile } from "openai";
+import OpenAI from "openai";
+
+/** 拡張子を取得（path モジュールを使わず、Vercel サーバーレスで安全に動作） */
+function getExtension(filename: string): string {
+  const lastDot = filename.lastIndexOf(".");
+  return lastDot >= 0 ? filename.slice(lastDot) : "";
+}
 
 const openaiClient = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -40,24 +45,20 @@ export async function uploadAndTranscribe(formData: FormData) {
 
     const timestamp = Date.now();
     const originalName = audioFile.name;
-    const extension = path.extname(originalName);
+    const extension = getExtension(originalName);
     const fileName = `${timestamp}${extension}`;
 
-    // ファイルをバッファに変換
+    // メモリ上でバッファを取得（ローカルファイルシステムは一切使用しない）
     const bytes = await audioFile.arrayBuffer();
     const buffer = Buffer.from(bytes);
     const fileSize = buffer.length;
 
-    // Cloudflare R2 にアップロード
+    // Cloudflare R2 に直接アップロード
     const contentType = getMimeType(extension);
     const audioUrl = await uploadToR2(buffer, fileName, contentType);
 
-    // Whisper APIで文字起こし
+    // Whisper APIで文字起こし（FormData の File をそのまま使用、ローカル経由なし）
     console.log("🎧 Whisper APIで文字起こし中...");
-    console.log(`📝 ファイル名: ${fileName}`);
-    console.log(`📏 拡張子: ${extension}`);
-
-    // ユーザー辞書＋修正履歴（Human-in-the-Loop）を取得し、prompt用にカンペ渡し
     const dicts = await getDictionaries();
     const correctionTerms = await getCorrectionTerms();
     const customTerms = [
@@ -70,12 +71,8 @@ export async function uploadAndTranscribe(formData: FormData) {
       "こんにちは。恐れ入ります、株式会社の〇〇と申します。よろしくお願いいたします。ローン、リース、受注、月額制、リフォーム、屋根工事、Googleマップ、SaaS、アポ、クロージング、架電、テーマ、導入、従量課金、固定費。";
     const whisperPrompt = `${basePrompt} ${customTerms}`.trim();
 
-    const file = await toFile(buffer, fileName, {
-      type: contentType,
-    });
-
     const transcription = await openaiClient.audio.transcriptions.create({
-      file: file,
+      file: audioFile,
       model: "whisper-1",
       language: "ja",
       prompt: whisperPrompt,
@@ -192,14 +189,15 @@ export async function uploadFeedback(formData: FormData, parentRecordingId: stri
 
     const timestamp = Date.now();
     const originalName = audioFile.name;
-    const extension = path.extname(originalName);
+    const extension = getExtension(originalName);
     const fileName = `feedback_${timestamp}${extension}`;
 
+    // メモリ上でバッファを取得（ローカルファイルシステムは一切使用しない）
     const bytes = await audioFile.arrayBuffer();
     const buffer = Buffer.from(bytes);
     const fileSize = buffer.length;
 
-    // Cloudflare R2 にアップロード
+    // Cloudflare R2 に直接アップロード
     const contentType = getMimeType(extension);
     const audioUrl = await uploadToR2(buffer, fileName, contentType);
 
@@ -218,12 +216,8 @@ export async function uploadFeedback(formData: FormData, parentRecordingId: stri
       "こんにちは。ここは〇〇と深掘りすべきです。恐れ入ります、もう少しヒアリングを増やしましょう。受注、ローン、リース、月額制、SaaS、アポ、クロージング、架電、テーマ、導入。";
     const whisperPrompt = `${basePrompt} ${customTerms}`.trim();
 
-    const file = await toFile(buffer, fileName, {
-      type: contentType,
-    });
-
     const transcription = await openaiClient.audio.transcriptions.create({
-      file: file,
+      file: audioFile,
       model: "whisper-1",
       language: "ja",
       prompt: whisperPrompt,

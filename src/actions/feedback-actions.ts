@@ -4,7 +4,7 @@ import { db } from "@/src/lib/db";
 import { getDictionaries } from "@/src/actions/dictionary-actions";
 import { uploadToR2 } from "@/src/lib/r2";
 import { revalidatePath } from "next/cache";
-import OpenAI, { toFile } from "openai";
+import OpenAI from "openai";
 
 const openaiClient = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -54,12 +54,9 @@ export async function addInlineVoiceFeedback(
       "こんにちは。ここは〇〇と深掘りすべきです。恐れ入ります、もう少しヒアリングを増やしましょう。受注、ローン、リース、月額制、SaaS、アポ、クロージング、架電、テーマ、導入。";
     const prompt = `${whisperPrompt} ${customTerms}`.trim();
 
-    const whisperFile = await toFile(buffer, fileName, {
-      type: mimeType,
-    });
-
+    // FormData の File をそのまま Whisper に渡す（ローカルファイルシステムは一切使用しない）
     const transcription = await openaiClient.audio.transcriptions.create({
-      file: whisperFile,
+      file: file,
       model: "whisper-1",
       language: "ja",
       prompt,

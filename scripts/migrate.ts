@@ -1,7 +1,6 @@
 import { createClient } from "@libsql/client";
-import * as fs from "fs";
-import * as path from "path";
 import * as dotenv from "dotenv";
+import { SCHEMA_SQL } from "../src/lib/db/schema-content";
 
 // .env ファイルを読み込む
 dotenv.config();
@@ -16,18 +15,16 @@ async function migrate() {
   }
 
   console.log("🔌 Tursoデータベースに接続中...");
-  
+
   const client = createClient({
     url: dbUrl,
     authToken: authToken,
   });
 
   try {
-    // スキーマファイルを読み込む
-    const schemaPath = path.join(process.cwd(), "src/lib/db/schema.sql");
-    const schema = fs.readFileSync(schemaPath, "utf-8");
+    // スキーマをインポートから取得（fs モジュールは使用しない - Vercel サーバーレス対応）
+    const schema = SCHEMA_SQL.trim();
 
-    // スキーマをセミコロンで分割して各SQLステートメントを実行
     const statements = schema
       .split(";")
       .map((s) => s.trim())
