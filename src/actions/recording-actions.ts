@@ -12,8 +12,12 @@ export async function uploadFeedback(_formData: FormData, _parentRecordingId: st
   return { success: false, error: "この機能は廃止されました。ページを再読み込みしてください。" };
 }
 
-// 録音を検索（キーワード・カテゴリでサーバーサイドフィルタ）
-export async function searchRecordings(query?: string, categoryId?: string) {
+// 録音を検索（キーワード・ワークスペースカテゴリ・音声種類でサーバーサイドフィルタ）
+export async function searchRecordings(
+  query?: string,
+  categoryId?: string,
+  audioCategory?: string
+) {
   try {
     let sql = `
       SELECT DISTINCT r.*, c.name as category_name
@@ -33,6 +37,10 @@ export async function searchRecordings(query?: string, categoryId?: string) {
       sql += ` AND r.category_id = ?`;
       args.push(categoryId.trim());
     }
+    if (audioCategory?.trim()) {
+      sql += ` AND r.audio_category = ?`;
+      args.push(audioCategory.trim());
+    }
     sql += ` ORDER BY r.created_at DESC`;
 
     const result = await db.execute({ sql, args });
@@ -50,6 +58,7 @@ export async function searchRecordings(query?: string, categoryId?: string) {
       custom_id: (row as { custom_id?: string }).custom_id as string | undefined,
       memo: (row as { memo?: string }).memo as string | undefined,
       category: ((row as { category_name?: string }).category_name ?? row.category) as string | undefined,
+      audio_category: (row as { audio_category?: string }).audio_category as string | undefined,
       created_at: row.created_at as number,
       updated_at: row.updated_at as number,
     }));
@@ -79,6 +88,7 @@ export async function getAllRecordings() {
       custom_id: (row as { custom_id?: string }).custom_id as string | undefined,
       memo: (row as { memo?: string }).memo as string | undefined,
       category: (row as { category?: string }).category as string | undefined,
+      audio_category: (row as { audio_category?: string }).audio_category as string | undefined,
       created_at: row.created_at as number,
       updated_at: row.updated_at as number,
     }));
@@ -114,12 +124,30 @@ export async function getRecordingById(recordingId: string) {
       custom_id: (row as { custom_id?: string }).custom_id as string | undefined,
       memo: (row as { memo?: string }).memo as string | undefined,
       category: (row as { category?: string }).category as string | undefined,
+      audio_category: (row as { audio_category?: string }).audio_category as string | undefined,
       created_at: row.created_at as number,
       updated_at: row.updated_at as number,
     };
   } catch (error) {
     console.error("❌ 録音取得エラー:", error);
     return null;
+  }
+}
+
+// 録音の音声種類（audio_category）を更新
+export async function updateRecordingAudioCategory(
+  recordingId: string,
+  audioCategory: string | null
+) {
+  try {
+    await db.execute({
+      sql: "UPDATE recordings SET audio_category = ?, updated_at = ? WHERE id = ?",
+      args: [audioCategory?.trim() || null, Date.now(), recordingId],
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("❌ 音声種類更新エラー:", error);
+    return { success: false, error: error instanceof Error ? error.message : "不明なエラー" };
   }
 }
 

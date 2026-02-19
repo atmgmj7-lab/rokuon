@@ -8,7 +8,9 @@ import {
   getTranscriptByRecordingId,
   updateRecordingCustomId,
   deleteRecording,
+  updateRecordingAudioCategory,
 } from "@/src/actions/recording-actions";
+import { AUDIO_CATEGORY_OPTIONS } from "@/src/lib/recording-constants";
 import { setRecordingCategory } from "@/src/actions/category-actions";
 import type { RecordingCategory } from "@/src/actions/category-actions";
 
@@ -25,6 +27,7 @@ interface Recording {
   custom_id?: string;
   memo?: string;
   category?: string;
+  audio_category?: string;
   created_at: number;
   updated_at: number;
 }
@@ -91,13 +94,15 @@ export default function RecordingCard({ recording, children, categories = [] }: 
   const [editingCustomIdValue, setEditingCustomIdValue] = useState(recording.custom_id || "");
   const [localCategoryId, setLocalCategoryId] = useState<string | null>(recording.category_id || null);
   const [localCategory, setLocalCategory] = useState(recording.category || "");
+  const [localAudioCategory, setLocalAudioCategory] = useState(recording.audio_category || "");
   const [localMemo, setLocalMemo] = useState(recording.memo || "");
 
   useEffect(() => {
     setLocalCategoryId(recording.category_id || null);
     setLocalCategory(recording.category || "");
+    setLocalAudioCategory(recording.audio_category || "");
     setLocalMemo(recording.memo || "");
-  }, [recording.category_id, recording.category, recording.memo]);
+  }, [recording.category_id, recording.category, recording.audio_category, recording.memo]);
 
   // 型バッジ
   const getTypeBadge = (type: string) => {
@@ -150,6 +155,14 @@ export default function RecordingCard({ recording, children, categories = [] }: 
       setLocalCategoryId(categoryId);
       const cat = categoryId ? categories.find((c) => c.id === categoryId) : null;
       setLocalCategory(cat?.name ?? "");
+    }
+  };
+
+  // 音声種類（audio_category）を保存
+  const handleSaveAudioCategory = async (audioCategory: string | null) => {
+    const result = await updateRecordingAudioCategory(recording.id, audioCategory || null);
+    if (result.success) {
+      setLocalAudioCategory(audioCategory || "");
     }
   };
 
@@ -280,6 +293,22 @@ export default function RecordingCard({ recording, children, categories = [] }: 
           {categories.length === 0 && (
             <span className="text-xs text-[#9E9A95]">カテゴリ管理から追加してください</span>
           )}
+        </div>
+
+        {/* 音声種類（audio_category）※ワークスペースカテゴリとは別 */}
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-[#9E9A95]">音声種類:</span>
+          <select
+            value={localAudioCategory}
+            onChange={(e) => handleSaveAudioCategory(e.target.value || null)}
+            className="px-3 py-1.5 rounded-lg text-sm font-medium border border-[#EBE8E3] bg-white text-[#36332E] hover:bg-[#FCFAF8] focus:ring-2 focus:ring-stone-300 outline-none transition"
+          >
+            {AUDIO_CATEGORY_OPTIONS.map((opt) => (
+              <option key={opt.value || "_empty"} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         {recording.description && (

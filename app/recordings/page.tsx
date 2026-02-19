@@ -9,14 +9,15 @@ import { Suspense } from "react";
 export default async function RecordingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; cat?: string }>;
+  searchParams: Promise<{ q?: string; cat?: string; acat?: string }>;
 }) {
   const params = await searchParams;
   const searchQuery = (params.q ?? "").trim();
   const categoryId = (params.cat ?? "").trim();
+  const audioCategory = (params.acat ?? "").trim();
 
   const [parentRecordings, allRecordings, categories] = await Promise.all([
-    searchRecordings(searchQuery || undefined, categoryId || undefined),
+    searchRecordings(searchQuery || undefined, categoryId || undefined, audioCategory || undefined),
     getAllRecordings(),
     getAllCategories(),
   ]);
@@ -72,6 +73,7 @@ export default async function RecordingsPage({
                   categories={categories}
                   initialQuery={searchQuery}
                   initialCategoryId={categoryId}
+                  initialAudioCategory={audioCategory}
                 />
                 <CategoryManager categories={categories} />
               </div>

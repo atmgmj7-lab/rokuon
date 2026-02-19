@@ -3,17 +3,20 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useState, useEffect } from "react";
 import type { RecordingCategory } from "@/src/actions/category-actions";
+import { AUDIO_CATEGORY_OPTIONS } from "@/src/lib/recording-constants";
 
 interface RecordingsSearchBarProps {
   categories: RecordingCategory[];
   initialQuery?: string;
   initialCategoryId?: string;
+  initialAudioCategory?: string;
 }
 
 export default function RecordingsSearchBar({
   categories,
   initialQuery = "",
   initialCategoryId = "",
+  initialAudioCategory = "",
 }: RecordingsSearchBarProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -24,12 +27,14 @@ export default function RecordingsSearchBar({
   }, [initialQuery]);
 
   const applyFilters = useCallback(
-    (q: string, catId: string) => {
+    (q: string, catId: string, acat: string) => {
       const params = new URLSearchParams(searchParams.toString());
       if (q.trim()) params.set("q", q.trim());
       else params.delete("q");
       if (catId) params.set("cat", catId);
       else params.delete("cat");
+      if (acat) params.set("acat", acat);
+      else params.delete("acat");
       router.push(`/recordings${params.toString() ? `?${params.toString()}` : ""}`);
     },
     [router, searchParams]
@@ -37,12 +42,17 @@ export default function RecordingsSearchBar({
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    applyFilters(query, initialCategoryId);
+    applyFilters(query, initialCategoryId, initialAudioCategory);
   };
 
   const handleCategoryClick = (catId: string) => {
     const newCat = initialCategoryId === catId ? "" : catId;
-    applyFilters(query, newCat);
+    applyFilters(query, newCat, initialAudioCategory);
+  };
+
+  const handleAudioCategoryClick = (acat: string) => {
+    const newAcat = initialAudioCategory === acat ? "" : acat;
+    applyFilters(query, initialCategoryId, newAcat);
   };
 
   return (
@@ -67,7 +77,7 @@ export default function RecordingsSearchBar({
 
       {categories.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-sm font-medium text-[#827F7B]">カテゴリ:</span>
+          <span className="text-sm font-medium text-[#827F7B]">ワークスペースカテゴリ:</span>
           <button
             type="button"
             onClick={() => handleCategoryClick("")}
@@ -99,6 +109,36 @@ export default function RecordingsSearchBar({
           ))}
         </div>
       )}
+
+      {/* 音声種類フィルター（ワークスペースカテゴリとは別） */}
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-medium text-[#827F7B]">音声種類:</span>
+        <button
+          type="button"
+          onClick={() => handleAudioCategoryClick("")}
+          className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+            !initialAudioCategory
+              ? "bg-[#C87A55] text-white shadow-sm shadow-stone-200/50"
+              : "bg-white border border-stone-200 text-stone-600 hover:bg-stone-50 hover:text-stone-900"
+          }`}
+        >
+          すべて
+        </button>
+        {AUDIO_CATEGORY_OPTIONS.filter((o) => o.value).map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => handleAudioCategoryClick(opt.value)}
+            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
+              initialAudioCategory === opt.value
+                ? "bg-[#C87A55] text-white shadow-sm shadow-stone-200/50"
+                : "bg-white border border-stone-200 text-stone-600 hover:bg-stone-50 hover:text-stone-900"
+            }`}
+          >
+            {opt.label}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
