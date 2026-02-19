@@ -43,6 +43,7 @@ import type {
   Timeline,
 } from "@/src/types/workspace";
 import Link from "next/link";
+import LearningDataManager from "@/src/components/workspace/LearningDataManager";
 
 type MenuTab =
   | "main_scenario"
@@ -50,7 +51,8 @@ type MenuTab =
   | "situations"
   | "categories"
   | "checks"
-  | "timelines";
+  | "timelines"
+  | "learning_data";
 
 export default function WorkspacePage() {
   const [activeMenu, setActiveMenu] = useState<MenuTab>("main_scenario");
@@ -296,52 +298,52 @@ export default function WorkspacePage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-500">読み込み中...</p>
+        <p className="text-[#827F7B]">読み込み中...</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-[#FDFCFB]">
       {/* ヘッダー */}
-      <div className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-6 py-4 shadow-lg">
+      <div className="bg-[#FDFCFB] px-6 py-4 border-b border-stone-200/60">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-2xl font-bold">🛠️ ワークスペース（統合版）</h1>
-            <p className="text-sm opacity-90 mt-1">
-              💡 すべての設定を一箇所で管理 | 自動保存対応
+            <h1 className="text-2xl font-bold text-[#2D2B2A]">ワークスペース（統合版）</h1>
+            <p className="text-sm text-[#827F7B] mt-1">
+              すべての設定を一箇所で管理 | 自動保存対応
             </p>
           </div>
           <div className="flex items-center gap-4">
             {/* 保存状態インジケーター */}
             {selectedItem && (
-              <div className="flex items-center gap-2 bg-white bg-opacity-20 px-4 py-2 rounded-lg">
+              <div className="flex items-center gap-2 bg-white border border-stone-200 px-4 py-2 rounded-lg">
                 {saveStatus === "saving" && (
                   <>
-                    <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
-                    <span className="text-sm font-medium">保存中...</span>
+                    <div className="animate-spin h-4 w-4 border-2 border-stone-400 border-t-transparent rounded-full" />
+                    <span className="text-sm font-medium text-[#2D2B2A]">保存中...</span>
                   </>
                 )}
                 {saveStatus === "saved" && (
                   <>
-                    <span className="text-green-300 text-xl">✓</span>
-                    <span className="text-sm font-medium">保存完了</span>
+                    <span className="text-[#827F7B] text-xl">✓</span>
+                    <span className="text-sm font-medium text-[#2D2B2A]">保存完了</span>
                   </>
                 )}
                 {saveStatus === "idle" && (
-                  <span className="text-sm font-medium opacity-70">編集可能</span>
+                  <span className="text-sm font-medium text-[#827F7B]">編集可能</span>
                 )}
               </div>
             )}
             <Link
               href="/call"
-              className="px-4 py-2 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg text-sm font-medium transition-colors"
+              className="px-4 py-2 bg-white border border-stone-200 text-stone-600 rounded-lg text-sm font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
             >
-              📞 コール画面へ
+              コール画面へ
             </Link>
             <Link
               href="/"
-              className="px-4 py-2 bg-white bg-opacity-10 hover:bg-opacity-20 text-white rounded-lg text-sm font-medium transition-colors"
+              className="px-4 py-2 bg-white border border-stone-200 text-stone-600 rounded-lg text-sm font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
             >
               ← ホーム
             </Link>
@@ -350,43 +352,42 @@ export default function WorkspacePage() {
       </div>
 
       {/* メニュータブ */}
-      <div className="bg-white border-b-2 border-gray-200 shadow-md overflow-x-auto">
+      <div className="bg-white border-b border-stone-200/60 overflow-x-auto">
         <div className="flex min-w-max">
           <MenuButton
             active={activeMenu === "main_scenario"}
             onClick={() => setActiveMenu("main_scenario")}
-            icon="📖"
             label="基本シナリオ"
           />
           <MenuButton
             active={activeMenu === "component"}
             onClick={() => setActiveMenu("component")}
-            icon="🧩"
             label="部品トーク"
           />
           <MenuButton
             active={activeMenu === "timelines"}
             onClick={() => setActiveMenu("timelines")}
-            icon="🎯"
             label="組み合わせトーク"
           />
           <MenuButton
             active={activeMenu === "situations"}
             onClick={() => setActiveMenu("situations")}
-            icon="🎬"
             label="状況タグ"
           />
           <MenuButton
             active={activeMenu === "checks"}
             onClick={() => setActiveMenu("checks")}
-            icon="✅"
             label="チェック項目"
           />
           <MenuButton
             active={activeMenu === "categories"}
             onClick={() => setActiveMenu("categories")}
-            icon="📂"
             label="カテゴリ"
+          />
+          <MenuButton
+            active={activeMenu === "learning_data"}
+            onClick={() => setActiveMenu("learning_data")}
+            label="学習データ（修正履歴）"
           />
         </div>
       </div>
@@ -456,6 +457,9 @@ export default function WorkspacePage() {
         {activeMenu === "categories" && (
           <CategoryManager categories={categories} onUpdate={() => loadData(true)} />
         )}
+
+        {/* 学習データ（修正履歴） */}
+        {activeMenu === "learning_data" && <LearningDataManager />}
       </div>
     </div>
   );
@@ -465,12 +469,10 @@ export default function WorkspacePage() {
 function MenuButton({
   active,
   onClick,
-  icon,
   label,
 }: {
   active: boolean;
   onClick: () => void;
-  icon: string;
   label: string;
 }) {
   return (
@@ -478,14 +480,11 @@ function MenuButton({
       onClick={onClick}
       className={`px-6 py-4 font-bold transition-all whitespace-nowrap ${
         active
-          ? "bg-indigo-600 text-white border-b-4 border-indigo-800"
-          : "bg-white text-gray-700 hover:bg-gray-100"
+          ? "bg-white text-[#2D2B2A] border-b-2 border-stone-400"
+          : "bg-white text-[#827F7B] hover:bg-stone-50 hover:text-stone-900"
       }`}
     >
-      <div className="flex items-center gap-2">
-        <span className="text-xl">{icon}</span>
-        <span>{label}</span>
-      </div>
+      {label}
     </button>
   );
 }
@@ -528,21 +527,21 @@ function TalkEditor({
   return (
     <div className="flex gap-6">
       {/* 左: リスト */}
-      <div className="w-96 bg-white rounded-xl shadow-lg p-6">
+      <div className="w-96 bg-white rounded-2xl border border-stone-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] p-6">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-xl font-bold text-gray-800">
-            {activeMenu === "main_scenario" ? "📖 基本シナリオ" : "🧩 部品トーク"}
+          <h2 className="text-xl font-bold text-[#2D2B2A]">
+            {activeMenu === "main_scenario" ? "基本シナリオ" : "部品トーク"}
           </h2>
           <button
             onClick={() => onCreateItem(activeMenu)}
-            className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg font-bold transition-all text-sm"
+            className="px-3 py-1.5 bg-white border border-stone-200 text-stone-600 rounded-lg font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors text-sm"
           >
-            ➕ 追加
+            追加
           </button>
         </div>
 
         {displayItems.length === 0 && (
-          <div className="text-center py-12 text-gray-500">
+          <div className="text-center py-12 text-[#827F7B]">
             <p className="text-sm">まだトークがありません</p>
           </div>
         )}
@@ -553,19 +552,19 @@ function TalkEditor({
               key={item.id}
               className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-all ${
                 selectedItem?.id === item.id
-                  ? "bg-blue-100 border-2 border-blue-500"
-                  : "bg-gray-50 border-2 border-gray-200 hover:border-blue-300"
+                  ? "bg-stone-100 border-2 border-stone-400"
+                  : "bg-white border border-stone-200/80 hover:border-stone-300"
               }`}
             >
               <div className="flex-1" onClick={() => onSelectItem(item.id)}>
-                <h4 className="font-bold text-gray-800 text-sm">{item.title}</h4>
+                <h4 className="font-bold text-[#2D2B2A] text-sm">{item.title}</h4>
                 {item.hearing_purpose && (
-                  <p className="text-xs text-blue-600 mt-1">🎯 {item.hearing_purpose}</p>
+                  <p className="text-xs text-[#827F7B] mt-1">{item.hearing_purpose}</p>
                 )}
               </div>
               <button
                 onClick={() => onDeleteItem(item.id)}
-                className="ml-2 px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-xs font-bold transition-colors"
+                className="ml-2 px-3 py-1.5 bg-white border border-stone-200 text-stone-600 rounded-lg text-xs font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
               >
                 削除
               </button>
@@ -575,11 +574,10 @@ function TalkEditor({
       </div>
 
       {/* 右: エディター */}
-      <div className="flex-1 bg-white rounded-xl shadow-lg p-6">
+      <div className="flex-1 bg-white rounded-2xl border border-stone-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] p-6">
         {!selectedItem ? (
-          <div className="h-full flex items-center justify-center text-gray-500">
+          <div className="h-full flex items-center justify-center text-[#827F7B]">
             <div className="text-center">
-              <span className="text-6xl mb-4 block">👈</span>
               <p className="text-lg">左からトークを選択してください</p>
               <p className="text-sm mt-2 opacity-70">編集内容は自動的に保存されます</p>
             </div>
@@ -589,74 +587,74 @@ function TalkEditor({
             {/* 保存状態インジケーター */}
             <div className="flex items-center justify-end">
               {saveStatus === "saving" && (
-                <div className="flex items-center gap-2 px-4 py-2 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="animate-spin h-4 w-4 border-2 border-blue-600 border-t-transparent rounded-full" />
-                  <span className="text-sm font-medium text-blue-800">保存中...</span>
+                <div className="flex items-center gap-2 px-4 py-2 bg-stone-50 rounded-lg border border-stone-200/80">
+                  <div className="animate-spin h-4 w-4 border-2 border-stone-500 border-t-transparent rounded-full" />
+                  <span className="text-sm font-medium text-[#2D2B2A]">保存中...</span>
                 </div>
               )}
               {saveStatus === "saved" && (
-                <div className="flex items-center gap-2 px-4 py-2 bg-green-50 rounded-lg border border-green-200">
-                  <span className="text-green-600 text-xl">✓</span>
-                  <span className="text-sm font-medium text-green-800">保存完了</span>
+                <div className="flex items-center gap-2 px-4 py-2 bg-stone-50 rounded-lg border border-stone-200/80">
+                  <span className="text-[#827F7B] text-xl">✓</span>
+                  <span className="text-sm font-medium text-[#2D2B2A]">保存完了</span>
                 </div>
               )}
             </div>
 
             {/* トーク編集フォーム */}
             <div>
-              <h3 className="text-xl font-bold text-gray-800 mb-4">トーク内容</h3>
+              <h3 className="text-xl font-bold text-[#2D2B2A] mb-4">トーク内容</h3>
 
               <div className="space-y-4">
                 {/* タイトル */}
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">
+                  <label className="block text-sm font-bold text-[#2D2B2A] mb-2">
                     タイトル（必須）
                   </label>
                   <input
                     type="text"
                     value={editingTitle}
                     onChange={(e) => onChangeTitle(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                    className="w-full px-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-300 focus:border-stone-300 transition-all"
                     placeholder="トークのタイトルを入力..."
                   />
                 </div>
 
                 {/* 3層構造 */}
-                <div className="border-l-4 border-blue-500 pl-4 bg-blue-50 p-4 rounded-r-lg">
-                  <label className="block text-sm font-bold text-blue-700 mb-2">
-                    🎯 ヒアリングすべき内容
+                <div className="border-l-4 border-stone-300 pl-4 bg-stone-50/50 p-4 rounded-r-lg">
+                  <label className="block text-sm font-bold text-[#2D2B2A] mb-2">
+                    ヒアリングすべき内容
                   </label>
                   <textarea
                     value={editingHearingPurpose}
                     onChange={(e) => onChangeHearingPurpose(e.target.value)}
                     rows={3}
-                    className="w-full px-4 py-3 border-2 border-blue-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                    className="w-full px-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-300 focus:border-stone-300 transition-all"
                     placeholder="このトークの目的を入力..."
                   />
                 </div>
 
-                <div className="border-l-4 border-green-500 pl-4 bg-green-50 p-4 rounded-r-lg">
-                  <label className="block text-sm font-bold text-green-700 mb-2">
-                    🗣️ 実際の聞き方
+                <div className="border-l-4 border-stone-300 pl-4 bg-stone-50/50 p-4 rounded-r-lg">
+                  <label className="block text-sm font-bold text-[#2D2B2A] mb-2">
+                    実際の聞き方
                   </label>
                   <textarea
                     value={editingContent}
                     onChange={(e) => onChangeContent(e.target.value)}
                     rows={8}
-                    className="w-full px-4 py-3 border-2 border-green-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 text-lg transition-all"
+                    className="w-full px-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-300 focus:border-stone-300 text-lg transition-all"
                     placeholder="実際に話すトーク内容を入力..."
                   />
                 </div>
 
-                <div className="border-l-4 border-purple-500 pl-4 bg-purple-50 p-4 rounded-r-lg">
-                  <label className="block text-sm font-bold text-purple-700 mb-2">
-                    💡 トップの狙い
+                <div className="border-l-4 border-stone-300 pl-4 bg-stone-50/50 p-4 rounded-r-lg">
+                  <label className="block text-sm font-bold text-[#2D2B2A] mb-2">
+                    トップの狙い
                   </label>
                   <textarea
                     value={editingStrategyNote}
                     onChange={(e) => onChangeStrategyNote(e.target.value)}
                     rows={4}
-                    className="w-full px-4 py-3 border-2 border-purple-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-all"
+                    className="w-full px-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-300 focus:border-stone-300 transition-all"
                     placeholder="このトークの戦略的意図を入力..."
                   />
                 </div>
@@ -666,34 +664,34 @@ function TalkEditor({
             {/* 部品トーク設定 */}
             {selectedItem.item_type === "component" && (
               <div>
-                <h3 className="text-xl font-bold text-gray-800 mb-4">🧩 部品トーク設定</h3>
+                <h3 className="text-xl font-bold text-[#2D2B2A] mb-4">部品トーク設定</h3>
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">
-                      🎬 状況タグに紐付け
+                    <label className="block text-sm font-bold text-[#2D2B2A] mb-2">
+                      状況タグに紐付け
                     </label>
                     <select
                       value={editingTargetSituationId}
                       onChange={(e) => onChangeTargetSituationId(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                      className="w-full px-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-300 focus:border-stone-300 transition-all"
                     >
                       <option value="">紐付けなし</option>
                       {situations.map((sit: Situation) => (
                         <option key={sit.id} value={sit.id}>
-                          {sit.icon} {sit.name}
+                          {sit.name}
                         </option>
                       ))}
                     </select>
                   </div>
 
                   <div>
-                    <label className="block text-sm font-bold text-gray-700 mb-2">
-                      ✅ チェック項目に紐付け
+                    <label className="block text-sm font-bold text-[#2D2B2A] mb-2">
+                      チェック項目に紐付け
                     </label>
                     <select
                       value={editingTriggerCheckItemId}
                       onChange={(e) => onChangeTriggerCheckItemId(e.target.value)}
-                      className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                      className="w-full px-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-300 focus:border-stone-300 transition-all"
                     >
                       <option value="">紐付けなし</option>
                       {checkItems.map((check: CheckItem) => (
@@ -709,16 +707,16 @@ function TalkEditor({
 
             {/* その他の設定 */}
             <div>
-              <h3 className="text-xl font-bold text-gray-800 mb-4">その他の設定</h3>
+              <h3 className="text-xl font-bold text-[#2D2B2A] mb-4">その他の設定</h3>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-bold text-gray-700 mb-2">
-                    📂 カテゴリ
+                  <label className="block text-sm font-bold text-[#2D2B2A] mb-2">
+                    カテゴリ
                   </label>
                   <select
                     value={editingCategoryId}
                     onChange={(e) => onChangeCategoryId(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                    className="w-full px-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-300 focus:border-stone-300 transition-all"
                   >
                     <option value="">未分類</option>
                     {categories.map((cat: Category) => (
@@ -729,19 +727,19 @@ function TalkEditor({
                   </select>
                 </div>
 
-                <div className="flex items-center justify-between p-4 bg-orange-50 rounded-lg border-2 border-orange-200">
+                <div className="flex items-center justify-between p-4 bg-stone-50 rounded-lg border border-stone-200/80">
                   <div>
-                    <label className="block text-sm font-bold text-orange-700">
-                      🛡️ Quick Response（武器庫）に表示
+                    <label className="block text-sm font-bold text-[#2D2B2A]">
+                      Quick Response（武器庫）に表示
                     </label>
-                    <p className="text-xs text-orange-600 mt-1">
+                    <p className="text-xs text-[#827F7B] mt-1">
                       コール画面の右下に常時表示
                     </p>
                   </div>
                   <button
                     onClick={() => onChangeIsQuickResponse(editingIsQuickResponse === 1 ? 0 : 1)}
                     className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
-                      editingIsQuickResponse === 1 ? "bg-orange-600" : "bg-gray-300"
+                      editingIsQuickResponse === 1 ? "bg-stone-600" : "bg-stone-300"
                     }`}
                   >
                     <span
@@ -757,17 +755,17 @@ function TalkEditor({
             {/* 分岐管理 */}
             <div>
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-xl font-bold text-gray-800">🌳 返答パターンと分岐</h3>
+                <h3 className="text-xl font-bold text-[#2D2B2A]">返答パターンと分岐</h3>
                 <button
                   onClick={onAddResponse}
-                  className="px-4 py-2 bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-700 hover:to-emerald-700 text-white rounded-lg font-bold text-sm transition-all"
+                  className="px-3 py-1.5 bg-white border border-stone-200 text-stone-600 rounded-lg font-medium text-sm hover:bg-stone-50 hover:text-stone-900 transition-colors"
                 >
-                  ➕ 返答を追加
+                  返答を追加
                 </button>
               </div>
 
               {responses.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
+                <div className="text-center py-8 text-[#827F7B]">
                   <p className="text-sm">まだ返答パターンがありません</p>
                 </div>
               )}
@@ -778,7 +776,7 @@ function TalkEditor({
                   return (
                     <div
                       key={response.id}
-                      className="p-4 bg-gray-50 rounded-lg border-2 border-gray-200"
+                      className="p-4 bg-stone-50 rounded-lg border border-stone-200/80"
                     >
                       <div className="flex items-start justify-between mb-3">
                         <input
@@ -788,31 +786,31 @@ function TalkEditor({
                             onUpdateResponse(response.id, e.target.value, response.next_item_id)
                           }
                           placeholder="顧客の返答（例: 忙しいです）"
-                          className="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mr-3 transition-all"
+                          className="flex-1 px-4 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-300 focus:border-stone-300 mr-3 transition-all"
                         />
                         <button
                           onClick={() => onDeleteResponse(response.id)}
-                          className="px-3 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-bold transition-colors"
+                          className="px-3 py-1.5 bg-white border border-stone-200 text-stone-600 rounded-lg text-sm font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
                         >
                           削除
                         </button>
                       </div>
 
-                      <div className="pl-4 border-l-4 border-blue-300">
-                        <p className="text-sm font-medium text-gray-700 mb-2">
+                      <div className="pl-4 border-l-4 border-stone-300">
+                        <p className="text-sm font-medium text-[#2D2B2A] mb-2">
                           ↓ 分岐先のトーク:
                         </p>
                         {nextItem ? (
-                          <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
-                            <p className="font-bold text-blue-800">{nextItem.title}</p>
+                          <div className="p-3 bg-stone-50 rounded-lg border border-stone-200/80">
+                            <p className="font-bold text-[#2D2B2A]">{nextItem.title}</p>
                           </div>
                         ) : (
                           <div className="space-y-2">
                             <button
                               onClick={() => onCreateBranchTalk(response.id)}
-                              className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-sm transition-colors"
+                              className="w-full px-4 py-2 bg-white border border-stone-200 text-stone-600 rounded-lg font-medium text-sm hover:bg-stone-50 hover:text-stone-900 transition-colors"
                             >
-                              🆕 新しいトークを作成
+                              新しいトークを作成
                             </button>
                             <select
                               onChange={(e) => {
@@ -824,12 +822,12 @@ function TalkEditor({
                                   );
                                 }
                               }}
-                              className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm transition-all"
+                              className="w-full px-4 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-300 focus:border-stone-300 text-sm transition-all"
                             >
                               <option value="">既存から選択...</option>
                               {allItems.map((item: ScriptItem) => (
                                 <option key={item.id} value={item.id}>
-                                  {item.item_type === "main_scenario" ? "📖" : "🧩"} {item.title}
+                                  {item.title}
                                 </option>
                               ))}
                             </select>
@@ -857,7 +855,7 @@ function SituationManager({
   onUpdate: () => void;
 }) {
   const [newName, setNewName] = useState("");
-  const [newIcon, setNewIcon] = useState("📌");
+  const [newIcon, setNewIcon] = useState("");
   const [newColor, setNewColor] = useState("#3B82F6");
 
   const handleCreate = async () => {
@@ -865,9 +863,9 @@ function SituationManager({
       alert("名前を入力してください");
       return;
     }
-    await createSituation(newName, "", newIcon, newColor);
+    await createSituation(newName, "", newIcon || "•", newColor);
     setNewName("");
-    setNewIcon("📌");
+    setNewIcon("");
     setNewColor("#3B82F6");
     onUpdate();
   };
@@ -880,38 +878,38 @@ function SituationManager({
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="bg-white rounded-xl shadow-lg p-6">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6">🎬 状況タグ管理</h2>
+      <div className="bg-white rounded-2xl border border-stone-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] p-6">
+        <h2 className="text-2xl font-bold text-[#2D2B2A] mb-6">状況タグ管理</h2>
 
         {/* 新規作成フォーム */}
-        <div className="bg-blue-50 rounded-lg p-4 mb-6">
-          <h3 className="font-bold text-blue-800 mb-3">➕ 新しい状況タグを追加</h3>
+        <div className="bg-stone-50 rounded-lg p-4 mb-6 border border-stone-200/80">
+          <h3 className="font-bold text-[#2D2B2A] mb-3">新しい状況タグを追加</h3>
           <div className="grid grid-cols-4 gap-3">
             <input
               type="text"
               value={newIcon}
               onChange={(e) => setNewIcon(e.target.value)}
-              placeholder="📌"
+              placeholder="アイコン（任意）"
               maxLength={2}
-              className="px-4 py-2 border-2 border-blue-300 rounded-lg text-center"
+              className="px-4 py-2 border border-stone-200 rounded-lg text-center"
             />
             <input
               type="color"
               value={newColor}
               onChange={(e) => setNewColor(e.target.value)}
-              className="h-12 border-2 border-blue-300 rounded-lg"
+              className="h-12 border border-stone-200 rounded-lg"
             />
             <input
               type="text"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="例: ヒアリング時"
-              className="col-span-2 px-4 py-2 border-2 border-blue-300 rounded-lg"
+              className="col-span-2 px-4 py-2 border border-stone-200 rounded-lg"
             />
           </div>
           <button
             onClick={handleCreate}
-            className="mt-3 w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold transition-colors"
+            className="mt-3 w-full px-6 py-3 bg-white border border-stone-200 text-stone-600 rounded-lg font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
           >
             追加する
           </button>
@@ -920,24 +918,23 @@ function SituationManager({
         {/* 一覧 */}
         <div className="space-y-2">
           {situations.length === 0 && (
-            <p className="text-center py-8 text-gray-500">まだ状況タグがありません</p>
+            <p className="text-center py-8 text-[#827F7B]">まだ状況タグがありません</p>
           )}
           {situations.map((sit) => (
             <div
               key={sit.id}
-              className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border-2 border-gray-200"
+              className="flex items-center justify-between p-4 bg-stone-50 rounded-lg border border-stone-200/80"
               style={{ borderLeftWidth: "6px", borderLeftColor: sit.color }}
             >
               <div className="flex items-center gap-4">
-                <span className="text-3xl">{sit.icon}</span>
                 <div>
-                  <h4 className="font-bold text-gray-800">{sit.name}</h4>
-                  {sit.description && <p className="text-sm text-gray-600">{sit.description}</p>}
+<h4 className="font-bold text-[#2D2B2A]">{sit.name}</h4>
+              {sit.description && <p className="text-sm text-[#827F7B]">{sit.description}</p>}
                 </div>
               </div>
               <button
                 onClick={() => handleDelete(sit.id)}
-                className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-bold transition-colors"
+                className="px-3 py-1.5 bg-white border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 hover:text-red-700 transition-colors"
               >
                 削除
               </button>
@@ -989,31 +986,31 @@ function CheckItemManager({
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="bg-white rounded-xl shadow-lg p-6">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6">✅ チェック項目管理</h2>
+      <div className="bg-white rounded-2xl border border-stone-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] p-6">
+        <h2 className="text-2xl font-bold text-[#2D2B2A] mb-6">チェック項目管理</h2>
 
         {/* 新規作成フォーム */}
-        <div className="bg-green-50 rounded-lg p-4 mb-6">
-          <h3 className="font-bold text-green-800 mb-3">➕ 新しいチェック項目を追加</h3>
+        <div className="bg-stone-50 rounded-lg p-4 mb-6 border border-stone-200/80">
+          <h3 className="font-bold text-[#2D2B2A] mb-3">新しいチェック項目を追加</h3>
           <div className="grid grid-cols-2 gap-3">
             <input
               type="text"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="例: 予算の確認"
-              className="px-4 py-2 border-2 border-green-300 rounded-lg"
+              className="px-4 py-2 border border-stone-200 rounded-lg"
             />
             <input
               type="text"
               value={newCategory}
               onChange={(e) => setNewCategory(e.target.value)}
               placeholder="カテゴリ（例: BANT）"
-              className="px-4 py-2 border-2 border-green-300 rounded-lg"
+              className="px-4 py-2 border border-stone-200 rounded-lg"
             />
           </div>
           <button
             onClick={handleCreate}
-            className="mt-3 w-full px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold transition-colors"
+            className="mt-3 w-full px-6 py-3 bg-white border border-stone-200 text-stone-600 rounded-lg font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
           >
             追加する
           </button>
@@ -1022,21 +1019,21 @@ function CheckItemManager({
         {/* 一覧（カテゴリ別） */}
         <div className="space-y-4">
           {Object.keys(groupedItems).length === 0 && (
-            <p className="text-center py-8 text-gray-500">まだチェック項目がありません</p>
+            <p className="text-center py-8 text-[#827F7B]">まだチェック項目がありません</p>
           )}
           {Object.keys(groupedItems).map((category) => (
-            <div key={category} className="bg-gray-50 rounded-lg p-4">
-              <h4 className="font-bold text-gray-700 mb-3">{category}</h4>
+            <div key={category} className="bg-stone-50 rounded-lg p-4 border border-stone-200/80">
+              <h4 className="font-bold text-[#2D2B2A] mb-3">{category}</h4>
               <div className="space-y-2">
                 {groupedItems[category].map((item) => (
                   <div
                     key={item.id}
-                    className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200"
+                    className="flex items-center justify-between p-3 bg-white rounded-lg border border-stone-200/80"
                   >
-                    <h5 className="font-bold text-gray-800">{item.name}</h5>
+                    <h5 className="font-bold text-[#2D2B2A]">{item.name}</h5>
                     <button
                       onClick={() => handleDelete(item.id)}
-                      className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-sm font-bold transition-colors"
+                      className="px-3 py-1.5 bg-white border border-stone-200 text-stone-600 rounded-lg text-sm font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
                     >
                       削除
                     </button>
@@ -1075,30 +1072,30 @@ function CategoryManager({
 
   return (
     <div className="max-w-4xl mx-auto">
-      <div className="bg-white rounded-xl shadow-lg p-6">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6">📂 カテゴリ管理</h2>
+      <div className="bg-white rounded-2xl border border-stone-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] p-6">
+        <h2 className="text-2xl font-bold text-[#2D2B2A] mb-6">カテゴリ管理</h2>
 
         {/* 新規作成フォーム */}
-        <div className="bg-purple-50 rounded-lg p-4 mb-6">
-          <h3 className="font-bold text-purple-800 mb-3">➕ 新しいカテゴリを追加</h3>
+        <div className="bg-stone-50 rounded-lg p-4 mb-6 border border-stone-200/80">
+          <h3 className="font-bold text-[#2D2B2A] mb-3">新しいカテゴリを追加</h3>
           <div className="grid grid-cols-3 gap-3">
             <input
               type="text"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder="例: 断り文句"
-              className="col-span-2 px-4 py-2 border-2 border-purple-300 rounded-lg"
+              className="col-span-2 px-4 py-2 border border-stone-200 rounded-lg"
             />
             <input
               type="color"
               value={newColor}
               onChange={(e) => setNewColor(e.target.value)}
-              className="h-12 border-2 border-purple-300 rounded-lg"
+              className="h-12 border border-stone-200 rounded-lg"
             />
           </div>
           <button
             onClick={handleCreate}
-            className="mt-3 w-full px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-lg font-bold transition-colors"
+            className="mt-3 w-full px-6 py-3 bg-white border border-stone-200 text-stone-600 rounded-lg font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
           >
             追加する
           </button>
@@ -1107,15 +1104,15 @@ function CategoryManager({
         {/* 一覧 */}
         <div className="space-y-2">
           {categories.length === 0 && (
-            <p className="text-center py-8 text-gray-500">まだカテゴリがありません</p>
+            <p className="text-center py-8 text-[#827F7B]">まだカテゴリがありません</p>
           )}
           {categories.map((cat) => (
             <div
               key={cat.id}
-              className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border-2 border-gray-200"
+              className="flex items-center justify-between p-4 bg-stone-50 rounded-lg border border-stone-200/80"
               style={{ borderLeftWidth: "6px", borderLeftColor: cat.color }}
             >
-              <h4 className="font-bold text-gray-800">{cat.name}</h4>
+              <h4 className="font-bold text-[#2D2B2A]">{cat.name}</h4>
               <div
                 className="w-8 h-8 rounded-full"
                 style={{ backgroundColor: cat.color }}
@@ -1233,20 +1230,20 @@ function TimelineManager({
 
   return (
     <div className="max-w-6xl mx-auto">
-      <div className="bg-white rounded-xl shadow-lg p-6">
-        <h2 className="text-2xl font-bold text-gray-800 mb-6">🎯 組み合わせトーク管理</h2>
-        <p className="text-sm text-gray-600 mb-6">
-          💡 状況タグを選択し、そのフェーズで使うトークとチェック項目を組み合わせます
+      <div className="bg-white rounded-2xl border border-stone-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] p-6">
+        <h2 className="text-2xl font-bold text-[#2D2B2A] mb-6">組み合わせトーク管理</h2>
+        <p className="text-sm text-[#827F7B] mb-6">
+          状況タグを選択し、そのフェーズで使うトークとチェック項目を組み合わせます
         </p>
 
         {/* Step 1: 状況タグ選択（複数選択可） */}
-        <div className="bg-blue-50 rounded-lg p-4 mb-6">
-          <h3 className="font-bold text-blue-800 mb-3">Step 1: 状況タグを選択（複数選択可）</h3>
-          <p className="text-sm text-blue-700 mb-3">
+        <div className="bg-stone-50 rounded-lg p-4 mb-6">
+          <h3 className="font-bold text-[#2D2B2A] mb-3">Step 1: 状況タグを選択（複数選択可）</h3>
+          <p className="text-sm text-stone-700 mb-3">
             複数の状況タグを選択できます。選択したタグに紐づくタイムラインが表示されます。
           </p>
           {situations.length === 0 && (
-            <p className="text-center py-4 text-gray-500 text-sm">
+            <p className="text-center py-4 text-[#827F7B] text-sm">
               まだ状況タグがありません。「状況タグ管理」で追加してください。
             </p>
           )}
@@ -1259,20 +1256,19 @@ function TimelineManager({
                   onClick={() => handleToggleSituation(sit.id)}
                   className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 transition-all ${
                     isSelected
-                      ? "bg-blue-100 border-blue-500 ring-2 ring-blue-300"
-                      : "bg-white border-gray-200 hover:border-blue-300"
+                      ? "bg-stone-100 border-stone-400 ring-2 ring-stone-300"
+                      : "bg-white border border-stone-200/80 hover:border-stone-300"
                   }`}
                   style={{
                     borderLeftWidth: "6px",
                     borderLeftColor: sit.color,
                   }}
                 >
-                  <span className={`text-2xl ${isSelected ? "text-blue-600" : "text-gray-400"}`}>
-                    {isSelected ? "✅" : "⬜"}
+                  <span className={`text-sm ${isSelected ? "text-[#2D2B2A]" : "text-[#827F7B]"}`}>
+                    {isSelected ? "●" : "○"}
                   </span>
                   <div className="flex items-center gap-2">
-                    <span className="text-xl">{sit.icon}</span>
-                    <span className={`font-bold ${isSelected ? "text-blue-800" : "text-gray-700"}`}>
+                    <span className={`font-bold ${isSelected ? "text-[#2D2B2A]" : "text-[#827F7B]"}`}>
                       {sit.name}
                     </span>
                   </div>
@@ -1281,8 +1277,8 @@ function TimelineManager({
             })}
           </div>
           {selectedSituations.size > 0 && (
-            <div className="mt-3 p-3 bg-blue-100 rounded-lg">
-              <p className="text-sm font-bold text-blue-800">
+            <div className="mt-3 p-3 bg-stone-100 rounded-lg border border-stone-200/60">
+              <p className="text-sm font-bold text-[#2D2B2A]">
                 選択中: {selectedSituations.size}個の状況タグ
               </p>
             </div>
@@ -1292,8 +1288,8 @@ function TimelineManager({
         {selectedSituations.size > 0 && (
           <>
             {/* Step 2: タイムライン選択 or 新規作成 */}
-            <div className="bg-green-50 rounded-lg p-4 mb-6">
-              <h3 className="font-bold text-green-800 mb-3">
+            <div className="bg-stone-50 rounded-lg p-4 mb-6 border border-stone-200/80">
+              <h3 className="font-bold text-[#2D2B2A] mb-3">
                 Step 2: タイムラインを選択 or 新規作成
               </h3>
 
@@ -1302,7 +1298,7 @@ function TimelineManager({
                   <select
                     value={selectedTimeline}
                     onChange={(e) => setSelectedTimeline(e.target.value)}
-                    className="w-full px-4 py-3 border-2 border-green-300 rounded-lg"
+                    className="w-full px-4 py-3 border border-stone-200 rounded-lg"
                   >
                     <option value="">選択してください...</option>
                     {filteredTimelines.map((tl) => (
@@ -1314,62 +1310,62 @@ function TimelineManager({
                 </div>
               )}
 
-              <div className="border-t-2 border-green-200 pt-4">
+              <div className="border-t border-stone-200/60 pt-4">
                 <input
                   type="text"
                   value={newTimelineTitle}
                   onChange={(e) => setNewTimelineTitle(e.target.value)}
                   placeholder="新しいタイムラインのタイトル"
-                  className="w-full px-4 py-2 border-2 border-green-300 rounded-lg mb-2"
+                  className="w-full px-4 py-2 border border-stone-200 rounded-lg mb-2"
                 />
                 <button
                   onClick={handleCreateTimeline}
-                  className="w-full px-6 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg font-bold transition-colors"
+                  className="w-full px-6 py-3 bg-white border border-stone-200 text-stone-600 rounded-lg font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
                 >
-                  ➕ 新規タイムラインを作成
+                  新規タイムラインを作成
                 </button>
               </div>
             </div>
 
             {/* Step 3: トークとチェック項目を組み合わせ */}
             {selectedTimeline && (
-              <div className="bg-purple-50 rounded-lg p-4">
+              <div className="bg-stone-50 rounded-lg p-4 border border-stone-200/80 mb-4">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-purple-800">
+                  <h3 className="font-bold text-[#2D2B2A]">
                     Step 3: トークとチェック項目を組み合わせ
                   </h3>
                   <button
                     onClick={handleDeleteTimeline}
-                    className="px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg text-sm font-bold transition-colors"
+                    className="px-3 py-1.5 bg-white border border-stone-200 text-stone-600 rounded-lg text-sm font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
                   >
-                    🗑️ タイムライン削除
+                    タイムライン削除
                   </button>
                 </div>
 
                 <div className="grid grid-cols-2 gap-6">
                   {/* 左: トークブロック */}
                   <div>
-                    <h4 className="font-bold text-gray-800 mb-3">💬 構成するトーク</h4>
+                    <h4 className="font-bold text-[#2D2B2A] mb-3">構成するトーク</h4>
 
                     {/* 追加済みトーク */}
                     <div className="space-y-2 mb-4">
                       {timelineBlocks.length === 0 && (
-                        <p className="text-sm text-gray-500 text-center py-4">
+                        <p className="text-sm text-[#827F7B] text-center py-4">
                           まだトークが追加されていません
                         </p>
                       )}
                       {timelineBlocks.map((block, index) => (
                         <div
                           key={block.id}
-                          className="flex items-center justify-between p-3 bg-white rounded-lg border-2 border-purple-400"
+                          className="flex items-center justify-between p-3 bg-white rounded-lg border border-stone-200/80"
                         >
                           <div className="flex items-center gap-2">
-                            <span className="font-bold text-purple-700">#{index + 1}</span>
-                            <span className="font-bold text-gray-800">{block.title}</span>
+                            <span className="font-bold text-[#827F7B]">#{index + 1}</span>
+                            <span className="font-bold text-[#2D2B2A]">{block.title}</span>
                           </div>
                           <button
                             onClick={() => handleRemoveBlock(block.id)}
-                            className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-sm transition-colors"
+                            className="px-3 py-1.5 bg-white border border-stone-200 text-stone-600 rounded-lg text-sm font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
                           >
                             削除
                           </button>
@@ -1378,8 +1374,8 @@ function TimelineManager({
                     </div>
 
                     {/* トーク追加 */}
-                    <div className="bg-white rounded-lg border-2 border-dashed border-purple-300 p-3">
-                      <h5 className="text-sm font-bold text-gray-700 mb-2">➕ トークを追加</h5>
+                    <div className="bg-white rounded-lg border border-dashed border-stone-200 p-3">
+                      <h5 className="text-sm font-bold text-[#2D2B2A] mb-2">トークを追加</h5>
                       <div className="max-h-64 overflow-y-auto space-y-1">
                         {talks
                           .filter((t) => !addedTalkIds.has(t.id))
@@ -1387,9 +1383,9 @@ function TimelineManager({
                             <button
                               key={talk.id}
                               onClick={() => handleAddBlock(talk.id)}
-                              className="w-full text-left px-3 py-2 bg-gray-50 hover:bg-purple-100 rounded border border-gray-200 hover:border-purple-400 transition-colors text-sm"
+                              className="w-full text-left px-3 py-2 bg-stone-50 hover:bg-stone-100 rounded border border-stone-200 hover:border-stone-400 transition-colors text-sm"
                             >
-                              {talk.item_type === "main_scenario" ? "📖" : "🧩"} {talk.title}
+                              {talk.title}
                             </button>
                           ))}
                       </div>
@@ -1398,24 +1394,24 @@ function TimelineManager({
 
                   {/* 右: チェック項目 */}
                   <div>
-                    <h4 className="font-bold text-gray-800 mb-3">✅ チェック項目</h4>
+                    <h4 className="font-bold text-[#2D2B2A] mb-3">チェック項目</h4>
 
                     {/* 追加済みチェック */}
                     <div className="space-y-2 mb-4">
                       {timelineChecks.length === 0 && (
-                        <p className="text-sm text-gray-500 text-center py-4">
+                        <p className="text-sm text-[#827F7B] text-center py-4">
                           まだチェック項目が追加されていません
                         </p>
                       )}
                       {timelineChecks.map((check) => (
                         <div
                           key={check.id}
-                          className="flex items-center justify-between p-3 bg-white rounded-lg border-2 border-purple-400"
+                          className="flex items-center justify-between p-3 bg-white rounded-lg border border-stone-200/80"
                         >
-                          <span className="font-bold text-gray-800">{check.name}</span>
+                          <span className="font-bold text-[#2D2B2A]">{check.name}</span>
                           <button
                             onClick={() => handleRemoveCheck(check.id)}
-                            className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white rounded text-sm transition-colors"
+                            className="px-3 py-1.5 bg-white border border-stone-200 text-stone-600 rounded-lg text-sm font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
                           >
                             削除
                           </button>
@@ -1424,9 +1420,9 @@ function TimelineManager({
                     </div>
 
                     {/* チェック項目追加 */}
-                    <div className="bg-white rounded-lg border-2 border-dashed border-purple-300 p-3">
-                      <h5 className="text-sm font-bold text-gray-700 mb-2">
-                        ➕ チェック項目を追加
+                    <div className="bg-white rounded-lg border border-dashed border-stone-200 p-3">
+                      <h5 className="text-sm font-bold text-[#2D2B2A] mb-2">
+                        チェック項目を追加
                       </h5>
                       <div className="max-h-64 overflow-y-auto space-y-1">
                         {checkItems
@@ -1435,11 +1431,11 @@ function TimelineManager({
                             <button
                               key={check.id}
                               onClick={() => handleAddCheck(check.id)}
-                              className="w-full text-left px-3 py-2 bg-gray-50 hover:bg-purple-100 rounded border border-gray-200 hover:border-purple-400 transition-colors text-sm"
+                              className="w-full text-left px-3 py-2 bg-stone-50 hover:bg-stone-100 rounded border border-stone-200 hover:border-stone-400 transition-colors text-sm"
                             >
                               {check.name}
                               {check.category && (
-                                <span className="text-xs text-gray-500 ml-2">
+                                <span className="text-xs text-[#827F7B] ml-2">
                                   ({check.category})
                                 </span>
                               )}

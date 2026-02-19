@@ -3,25 +3,49 @@
 @tailwind utilities;
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #FDFCFB;
+  --foreground: #2D2B2A;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+/* Claude風: 極限まで洗練されたカラー・PCデザイン固定 */
 body {
   color: var(--foreground);
   background: var(--background);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-noto-serif-jp), "Yu Mincho", "游明朝", "Shippori Mincho", "Hiragino Mincho ProN", serif;
+  line-height: 1.8;
+  letter-spacing: 0.02em;
+  min-width: 1024px;
 }
 
 @layer utilities {
   .text-balance {
     text-wrap: balance;
   }
+}
+
+/* Claude風: 下からフワッと浮かび上がるアニメーション */
+@keyframes slide-up-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up-fade-in {
+  animation: slide-up-fade-in 0.5s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+}
+
+/* 和紙風シャドウ（stone-200系） */
+.shadow-paper-sm {
+  box-shadow: 0 1px 2px 0 rgb(235 232 227 / 0.5);
+}
+.shadow-paper-md {
+  box-shadow: 0 4px 6px -1px rgb(235 232 227 / 0.5), 0 2px 4px -2px rgb(235 232 227 / 0.3);
+}
+.shadow-paper-lg {
+  box-shadow: 0 10px 15px -3px rgb(235 232 227 / 0.6), 0 4px 6px -4px rgb(235 232 227 / 0.4);
 }

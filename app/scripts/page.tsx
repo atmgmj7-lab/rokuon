@@ -44,7 +44,7 @@ export default async function ScriptsPage() {
               </Link>
             </div>
 
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-6 grid-cols-3">
               {scripts.map((script) => (
                 <div
                   key={script.id}

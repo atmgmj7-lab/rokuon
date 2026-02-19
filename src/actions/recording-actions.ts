@@ -2,6 +2,7 @@
 
 import { db } from "@/src/lib/db";
 import { getDictionaries } from "@/src/actions/dictionary-actions";
+import { getCorrectionTerms } from "@/src/actions/correction-actions";
 import { formatCallTranscript, mergeFeedbackIntoTranscript } from "@/src/actions/format-actions";
 import { revalidatePath } from "next/cache";
 import { writeFile, mkdir, readFile } from "fs/promises";
@@ -65,9 +66,15 @@ export async function uploadAndTranscribe(formData: FormData) {
     console.log(`📝 ファイル名: ${fileName}`);
     console.log(`📏 拡張子: ${extension}`);
 
-    // ユーザー辞書を取得し、prompt用にカンマ区切り文字列化
+    // ユーザー辞書＋修正履歴（Human-in-the-Loop）を取得し、prompt用にカンペ渡し
     const dicts = await getDictionaries();
-    const customTerms = dicts.map((d) => d.term).join(", ");
+    const correctionTerms = await getCorrectionTerms();
+    const customTerms = [
+      ...dicts.map((d) => d.term),
+      ...correctionTerms,
+    ]
+      .filter((t) => t && t.trim())
+      .join(", ");
     const basePrompt =
       "こんにちは。恐れ入ります、株式会社の〇〇と申します。よろしくお願いいたします。ローン、リース、受注、月額制、リフォーム、屋根工事、Googleマップ、SaaS、アポ、クロージング、架電、テーマ、導入、従量課金、固定費。";
     const whisperPrompt = `${basePrompt} ${customTerms}`.trim();
@@ -219,7 +226,13 @@ export async function uploadFeedback(formData: FormData, parentRecordingId: stri
     console.log("🎧 指導音声をWhisper APIで文字起こし中...");
 
     const dicts = await getDictionaries();
-    const customTerms = dicts.map((d) => d.term).join(", ");
+    const correctionTerms = await getCorrectionTerms();
+    const customTerms = [
+      ...dicts.map((d) => d.term),
+      ...correctionTerms,
+    ]
+      .filter((t) => t && t.trim())
+      .join(", ");
     const basePrompt =
       "こんにちは。ここは〇〇と深掘りすべきです。恐れ入ります、もう少しヒアリングを増やしましょう。受注、ローン、リース、月額制、SaaS、アポ、クロージング、架電、テーマ、導入。";
     const whisperPrompt = `${basePrompt} ${customTerms}`.trim();
@@ -334,6 +347,8 @@ export async function getAllRecordings() {
       parent_id: row.parent_id as string | null,
       category_id: row.category_id as string | null,
       custom_id: (row as { custom_id?: string }).custom_id as string | undefined,
+      memo: (row as { memo?: string }).memo as string | undefined,
+      category: (row as { category?: string }).category as string | undefined,
       created_at: row.created_at as number,
       updated_at: row.updated_at as number,
     }));
@@ -367,12 +382,46 @@ export async function getRecordingById(recordingId: string) {
       parent_id: row.parent_id as string | null,
       category_id: row.category_id as string | null,
       custom_id: (row as { custom_id?: string }).custom_id as string | undefined,
+      memo: (row as { memo?: string }).memo as string | undefined,
+      category: (row as { category?: string }).category as string | undefined,
       created_at: row.created_at as number,
       updated_at: row.updated_at as number,
     };
   } catch (error) {
     console.error("❌ 録音取得エラー:", error);
     return null;
+  }
+}
+
+// 録音のメモを更新
+export async function updateRecordingMemo(recordingId: string, memo: string) {
+  try {
+    await db.execute({
+      sql: "UPDATE recordings SET memo = ?, updated_at = ? WHERE id = ?",
+      args: [memo || null, Date.now(), recordingId],
+    });
+    revalidatePath("/recordings");
+    revalidatePath("/");
+    return { success: true };
+  } catch (error) {
+    console.error("❌ メモ更新エラー:", error);
+    return { success: false, error: error instanceof Error ? error.message : "不明なエラー" };
+  }
+}
+
+// 録音のカテゴリを更新
+export async function updateRecordingCategory(recordingId: string, category: string) {
+  try {
+    await db.execute({
+      sql: "UPDATE recordings SET category = ?, updated_at = ? WHERE id = ?",
+      args: [category?.trim() || null, Date.now(), recordingId],
+    });
+    revalidatePath("/recordings");
+    revalidatePath("/");
+    return { success: true };
+  } catch (error) {
+    console.error("❌ カテゴリ更新エラー:", error);
+    return { success: false, error: error instanceof Error ? error.message : "不明なエラー" };
   }
 }
 

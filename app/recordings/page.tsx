@@ -1,17 +1,45 @@
 import { getAllRecordings } from "@/src/actions/recording-actions";
 import Link from "next/link";
 import RecordingCard from "@/src/components/recording/RecordingCard";
+import RecordingsSearchBar from "@/src/components/recording/RecordingsSearchBar";
+import { Suspense } from "react";
 
-export default async function RecordingsPage() {
+export default async function RecordingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ q?: string; cat?: string }>;
+}) {
+  const params = await searchParams;
+  const searchQuery = (params.q ?? "").trim();
+  const categoryFilter = (params.cat ?? "").trim();
+
   const recordings = await getAllRecordings();
 
   // 親録音（課題音声とお手本）のみを抽出
-  const parentRecordings = recordings.filter((r) => !r.parent_id);
+  let parentRecordings = recordings.filter((r) => !r.parent_id);
 
-  // 子録音（指導音声）をマッピング
+  // 検索フィルター（title・memoの部分一致）
+  if (searchQuery) {
+    const q = searchQuery.toLowerCase();
+    parentRecordings = parentRecordings.filter(
+      (r) =>
+        (r.title ?? "").toLowerCase().includes(q) ||
+        (r.memo ?? "").toLowerCase().includes(q)
+    );
+  }
+
+  // カテゴリフィルター
+  if (categoryFilter) {
+    parentRecordings = parentRecordings.filter(
+      (r) => (r.category ?? "").trim() === categoryFilter
+    );
+  }
+
+  // 子録音（指導音声）をマッピング（フィルター後の親に紐づくもの）
+  const filteredParentIds = new Set(parentRecordings.map((r) => r.id));
   const childrenMap = new Map<string, typeof recordings>();
   recordings
-    .filter((r) => r.parent_id)
+    .filter((r) => r.parent_id && filteredParentIds.has(r.parent_id))
     .forEach((child) => {
       if (!childrenMap.has(child.parent_id!)) {
         childrenMap.set(child.parent_id!, []);
@@ -19,40 +47,80 @@ export default async function RecordingsPage() {
       childrenMap.get(child.parent_id!)!.push(child);
     });
 
+  // 存在するカテゴリ一覧（親録音から抽出、重複排除）
+  const allParentRecordings = recordings.filter((r) => !r.parent_id);
+  const categories = [
+    ...new Set(
+      allParentRecordings
+        .map((r) => (r.category ?? "").trim())
+        .filter((c) => c.length > 0)
+    ),
+  ].sort();
+
+  const hasRecordings = recordings.filter((r) => !r.parent_id).length > 0;
+  const hasFilteredResults = parentRecordings.length > 0;
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12">
-      <div className="container mx-auto px-4">
+    <div className="min-h-screen bg-[#FDFCFB] py-12">
+      <div className="container mx-auto p-8">
         <header className="mb-8">
           <div className="flex items-center justify-between mb-4">
-            <h1 className="text-4xl font-bold text-gray-800">📼 録音一覧</h1>
+            <h1 className="text-4xl font-bold text-[#2D2B2A]">録音一覧</h1>
             <div className="flex flex-wrap gap-2">
               <Link
                 href="/recordings/dictionary"
-                className="inline-flex items-center gap-1 px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg font-medium shadow-md transition-all"
+                className="inline-flex items-center gap-1 px-5 py-2.5 bg-white border border-stone-200 text-stone-600 rounded-lg font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
               >
-                📖 ユーザー辞書
+                ユーザー辞書
               </Link>
               <Link
                 href="/"
-                className="inline-flex items-center px-4 py-2.5 bg-gray-200 hover:bg-gray-300 rounded-lg font-medium transition-colors"
+                className="inline-flex items-center px-4 py-2.5 bg-white border border-stone-200 text-stone-600 rounded-lg font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
               >
                 ← ホームへ
               </Link>
             </div>
           </div>
-          <p className="text-gray-600">
+          <p className="text-[#827F7B] mb-6">
             アップロードされた録音データをIDで管理。課題音声に対してフィードバック音声を紐付けできます
           </p>
+
+          {/* 検索・カテゴリフィルター */}
+          {hasRecordings && (
+            <Suspense
+              fallback={
+                <div className="h-20 bg-white/50 rounded-lg border border-stone-200 animate-pulse" />
+              }
+            >
+              <RecordingsSearchBar
+                categories={categories}
+                initialQuery={searchQuery}
+                initialCategory={categoryFilter}
+              />
+            </Suspense>
+          )}
         </header>
 
-        {parentRecordings.length === 0 ? (
-          <div className="bg-white rounded-xl shadow-lg p-12 text-center">
-            <p className="text-gray-500 mb-6">まだ録音データがありません</p>
+        {!hasRecordings ? (
+          <div className="bg-white rounded-2xl border border-stone-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] p-12 text-center">
+            <p className="text-[#827F7B] mb-6">まだ録音データがありません</p>
             <Link
               href="/"
-              className="inline-block px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors shadow-md"
+              className="inline-block px-6 py-3 bg-white border border-stone-200 text-stone-600 rounded-lg font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
             >
-              ➕ 音声をアップロード
+              音声をアップロード
+            </Link>
+          </div>
+        ) : !hasFilteredResults ? (
+          <div className="bg-white rounded-2xl border border-stone-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] p-12 text-center">
+            <p className="text-[#827F7B] mb-6">
+              検索条件に一致する録音がありません
+            </p>
+            <Link
+              href="/recordings"
+              className="inline-block px-6 py-3 bg-white border border-stone-200 text-stone-600 rounded-lg font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
+            >
+              フィルターを解除
             </Link>
           </div>
         ) : (

@@ -3,13 +3,13 @@ import Link from "next/link";
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-12">
-      <div className="container mx-auto px-4">
+    <div className="min-h-screen bg-[#FDFCFB] py-12">
+      <div className="container mx-auto p-8">
         <header className="text-center mb-12">
-          <h1 className="text-5xl font-bold mb-4 text-gray-800">
-            🎙️ Rokuon
+          <h1 className="text-5xl font-bold mb-4 text-[#2D2B2A]">
+            Recode
           </h1>
-          <p className="text-xl text-gray-600 mb-6">
+          <p className="text-xl text-[#827F7B] mb-6">
             テレアポ音声を自動文字起こし
           </p>
 
@@ -17,69 +17,41 @@ export default function Home() {
           <div className="flex gap-4 justify-center mb-8 flex-wrap">
             <Link
               href="/call"
-              className="px-10 py-6 bg-gradient-to-r from-orange-600 to-red-600 hover:from-orange-700 hover:to-red-700 text-white rounded-2xl font-bold text-lg transition-all shadow-2xl hover:shadow-3xl animate-pulse ring-4 ring-orange-300 transform hover:scale-105"
+              className="px-10 py-6 bg-[#C87A55] hover:bg-[#B56A45] text-white rounded-2xl font-bold text-lg transition-all shadow-paper-md"
             >
-              📞 コール画面
+              コール画面
             </Link>
             <Link
               href="/workspace"
-              className="px-10 py-6 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white rounded-2xl font-bold text-lg transition-all shadow-2xl hover:shadow-3xl ring-4 ring-indigo-300 transform hover:scale-105"
+              className="px-10 py-6 bg-[#C87A55] hover:bg-[#B56A45] text-white rounded-2xl font-bold text-lg transition-all shadow-paper-md"
             >
-              🛠️ ワークスペース
+              ワークスペース
             </Link>
             <Link
               href="/recordings"
-              className="px-10 py-6 bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-700 hover:to-cyan-700 text-white rounded-2xl font-bold text-lg transition-all shadow-2xl hover:shadow-3xl ring-4 ring-blue-300 transform hover:scale-105"
+              className="px-10 py-6 bg-[#C87A55] hover:bg-[#B56A45] text-white rounded-2xl font-bold text-lg transition-all shadow-paper-md"
             >
-              📚 録音履歴
+              録音履歴
             </Link>
           </div>
 
-          {/* 説明 */}
-          <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-lg p-6 mb-8">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">💡 使い方</h2>
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <span className="text-2xl">🛠️</span>
-                <div>
-                  <h3 className="font-bold text-gray-800 mb-1">ワークスペース（統合版）</h3>
-                  <p className="text-sm text-gray-700">
-                    <strong>6つのメニュー</strong>ですべてを管理：基本シナリオ、部品トーク、組み合わせトーク、状況タグ、チェック項目、カテゴリ。
-                    iPhoneライクな直感的UIで削除・追加が簡単。変更は明示的な<strong>保存ボタン</strong>で確定。
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <span className="text-2xl">📞</span>
-                <div>
-                  <h3 className="font-bold text-gray-800 mb-1">コール画面（実戦コックピット）</h3>
-                  <p className="text-sm text-gray-700">
-                    <strong>基本シナリオ</strong>からスタート。会話を進めながら<strong>チェック項目をON</strong> → 部品トークが<strong>動的に追加</strong>（アニメーション付き）。
-                    状況タブの切り替えで、フェーズに応じたトークセットに変更。右下の<strong>Quick Response</strong>で想定外の質問に即対応。
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-
           {/* 録音機能 */}
-          <div className="max-w-3xl mx-auto bg-white rounded-xl shadow-lg p-6 mb-8">
-            <h2 className="text-xl font-bold text-gray-800 mb-4">🎙️ 音声アップロード</h2>
-            <p className="text-sm text-gray-600 mb-4">
+          <div className="max-w-3xl mx-auto bg-white rounded-2xl border border-stone-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] p-6 mb-8">
+            <h2 className="text-xl font-bold text-[#2D2B2A] mb-4">音声アップロード</h2>
+            <p className="text-sm text-[#827F7B] mb-4">
               テレアポ音声をアップロードして自動文字起こしを行います
             </p>
             <AudioUploader />
 
             {/* 履歴を見るボタン */}
-            <div className="mt-6 pt-6 border-t-2 border-gray-200">
+            <div className="mt-6 pt-6 border-t border-stone-200/60">
               <Link
                 href="/recordings"
-                className="flex items-center justify-center gap-3 w-full px-6 py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-bold transition-all shadow-lg hover:shadow-xl"
+                className="flex items-center justify-center gap-3 w-full px-6 py-4 bg-[#C87A55] hover:bg-[#B56A45] text-white rounded-xl font-bold transition-all"
               >
-                <span className="text-2xl">📚</span>
-                <span>履歴を見る</span>
+                履歴を見る
               </Link>
-              <p className="text-xs text-gray-500 mt-2 text-center">
+              <p className="text-xs text-[#827F7B] mt-2 text-center">
                 録音一覧・ID管理・フィードバック音声の紐付け
               </p>
             </div>

@@ -10,8 +10,8 @@ function SubmitButton({ isLoading }: { isLoading: boolean }) {
       disabled={isLoading}
       className={`w-full py-3 px-4 rounded-lg font-medium transition-all duration-200 ${
         isLoading
-          ? "bg-gray-400 cursor-not-allowed"
-          : "bg-blue-600 hover:bg-blue-700 text-white shadow-lg hover:shadow-xl"
+          ? "bg-stone-400 cursor-not-allowed"
+          : "bg-[#4A463F] hover:bg-[#3E3A34] text-white"
       }`}
     >
       {isLoading ? (
@@ -36,10 +36,10 @@ function SubmitButton({ isLoading }: { isLoading: boolean }) {
               d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
             ></path>
           </svg>
-          🎧 解析中... (数十秒かかります)
+          解析中（数十秒かかります）
         </span>
       ) : (
-        "📤 アップロードして文字起こし"
+        "アップロードして文字起こし"
       )}
     </button>
   );
@@ -84,7 +84,7 @@ export default function AudioUploader() {
       if (response.success) {
         setResult({
           success: true,
-          message: "✅ アップロードと文字起こしが完了しました！",
+          message: "アップロードと文字起こしが完了しました",
           transcript: response.data?.transcript,
         });
         setSelectedFile(null);
@@ -92,13 +92,13 @@ export default function AudioUploader() {
       } else {
         setResult({
           success: false,
-          message: `❌ エラー: ${response.error}`,
+          message: `エラー: ${response.error}`,
         });
       }
     } catch (error) {
       setResult({
         success: false,
-        message: `❌ エラー: ${error instanceof Error ? error.message : "不明なエラー"}`,
+        message: `エラー: ${error instanceof Error ? error.message : "不明なエラー"}`,
       });
     } finally {
       setIsLoading(false);
@@ -107,9 +107,9 @@ export default function AudioUploader() {
 
   return (
     <div className="max-w-2xl mx-auto p-6">
-      <div className="bg-white rounded-xl shadow-lg p-8 border border-gray-200">
-        <h2 className="text-2xl font-bold mb-6 text-gray-800">
-          🎙️ テレアポ音声アップロード
+      <div className="bg-white rounded-xl shadow-lg p-8 border border-stone-200">
+        <h2 className="text-2xl font-bold mb-6 text-stone-800">
+          テレアポ音声アップロード
         </h2>
 
         <form ref={formRef} onSubmit={handleSubmit} className="space-y-6">
@@ -117,7 +117,7 @@ export default function AudioUploader() {
           <div>
             <label
               htmlFor="title"
-              className="block text-sm font-medium text-gray-700 mb-2"
+              className="block text-sm font-medium text-stone-700 mb-2"
             >
               タイトル
             </label>
@@ -126,7 +126,7 @@ export default function AudioUploader() {
               id="title"
               name="title"
               placeholder="例: 2024年2月14日 架電記録"
-              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition"
+              className="w-full px-4 py-2 border border-stone-300 rounded-lg focus:ring-2 focus:ring-stone-400 focus:border-transparent outline-none transition"
             />
           </div>
 
@@ -134,7 +134,7 @@ export default function AudioUploader() {
           <div>
             <label
               htmlFor="description"
-              className="block text-sm font-medium text-gray-700 mb-2"
+              className="block text-sm font-medium text-stone-700 mb-2"
             >
               説明（任意）
             </label>
@@ -151,7 +151,7 @@ export default function AudioUploader() {
           <div>
             <label
               htmlFor="audio"
-              className="block text-sm font-medium text-gray-700 mb-2"
+              className="block text-sm font-medium text-stone-700 mb-2"
             >
               音声ファイル
             </label>
@@ -163,13 +163,13 @@ export default function AudioUploader() {
                 accept="audio/*"
                 onChange={handleFileChange}
                 disabled={isLoading}
-                className="w-full px-4 py-3 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full px-4 py-3 border-2 border-dashed border-stone-300 rounded-lg cursor-pointer hover:border-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-400 transition file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-stone-50 file:text-stone-700 hover:file:bg-stone-100 disabled:opacity-50 disabled:cursor-not-allowed"
               />
             </div>
             {selectedFile && (
-              <p className="mt-2 text-sm text-gray-600">
+              <p className="mt-2 text-sm text-stone-600">
                 選択中: <span className="font-medium">{selectedFile.name}</span>
-                <span className="text-gray-400 ml-2">
+                <span className="text-stone-400 ml-2">
                   ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
                 </span>
               </p>
@@ -185,23 +185,23 @@ export default function AudioUploader() {
           <div
             className={`mt-6 p-4 rounded-lg ${
               result.success
-                ? "bg-green-50 border border-green-200"
-                : "bg-red-50 border border-red-200"
+                ? "bg-[#FAF9F6] border border-stone-200"
+                : "bg-stone-100 border border-stone-300"
             }`}
           >
             <p
               className={`font-medium ${
-                result.success ? "text-green-800" : "text-red-800"
+                result.success ? "text-stone-800" : "text-stone-700"
               }`}
             >
               {result.message}
             </p>
             {result.transcript && (
-              <div className="mt-4 p-4 bg-white rounded border border-gray-200">
-                <h3 className="font-semibold text-gray-700 mb-2">
-                  📝 文字起こし結果:
+              <div className="mt-4 p-4 bg-white rounded border border-stone-200">
+                <h3 className="font-semibold text-stone-700 mb-2">
+                  文字起こし結果
                 </h3>
-                <p className="text-gray-600 whitespace-pre-wrap leading-relaxed">
+                <p className="text-stone-600 whitespace-pre-wrap leading-[2.2] tracking-[0.03em]">
                   {result.transcript}
                 </p>
               </div>

@@ -1,9 +1,16 @@
 import type { Metadata } from "next";
+import { Noto_Serif_JP } from "next/font/google";
 import "./globals.css";
 
+const notoSerifJP = Noto_Serif_JP({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-noto-serif-jp",
+});
+
 export const metadata: Metadata = {
-  title: "Rokuon",
-  description: "録音アプリケーション",
+  title: "Recode",
+  description: "テレアポ音声を自動文字起こし",
 };
 
 export default function RootLayout({
@@ -12,7 +19,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ja">
+    <html lang="ja" className={notoSerifJP.variable}>
       <body className="antialiased">
         {children}
       </body>

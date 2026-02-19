@@ -44,7 +44,7 @@ export default async function ScriptLogsPage({ params }: PageProps) {
           </div>
 
           {/* 統計情報 */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+          <div className="grid grid-cols-3 gap-4 mt-6">
             <div className="bg-blue-50 rounded-lg p-4">
               <p className="text-sm text-gray-600 mb-1">総実行回数</p>
               <p className="text-3xl font-bold text-blue-600">{logs.length}</p>

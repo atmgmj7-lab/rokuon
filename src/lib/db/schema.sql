@@ -12,6 +12,10 @@ CREATE TABLE IF NOT EXISTS recordings (
   parent_id TEXT,
   -- 業種・属性等の区分
   category_id TEXT,
+  -- マネージャーが入力する課題や理解などのメモ
+  memo TEXT,
+  -- 録音の分類（例: 初回商談, クロージング, クレーム）
+  category TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   FOREIGN KEY (parent_id) REFERENCES recordings(id) ON DELETE CASCADE
@@ -284,3 +288,21 @@ CREATE TABLE IF NOT EXISTS user_dictionaries (
 
 CREATE INDEX IF NOT EXISTS idx_user_dictionaries_term ON user_dictionaries(term);
 CREATE INDEX IF NOT EXISTS idx_user_dictionaries_category ON user_dictionaries(category);
+
+-- ========================================
+-- Human-in-the-Loop: 文字起こし修正履歴（Whisperカンペ用）
+-- ========================================
+
+-- ユーザーが文字起こしを編集した際の Before/After を蓄積
+CREATE TABLE IF NOT EXISTS transcript_corrections (
+  id TEXT PRIMARY KEY,
+  recording_id TEXT NOT NULL,
+  transcript_id TEXT,
+  original_text TEXT NOT NULL,
+  corrected_text TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  FOREIGN KEY (recording_id) REFERENCES recordings(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_transcript_corrections_recording_id ON transcript_corrections(recording_id);
+CREATE INDEX IF NOT EXISTS idx_transcript_corrections_created_at ON transcript_corrections(created_at DESC);

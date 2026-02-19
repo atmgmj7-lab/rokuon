@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { updateTranscriptContent } from "@/src/actions/recording-actions";
+import { updateTranscriptContent, updateRecordingMemo } from "@/src/actions/recording-actions";
 import { addInlineVoiceFeedback, deleteInlineVoiceFeedback } from "@/src/actions/feedback-actions";
+import { saveTranscriptCorrections } from "@/src/actions/correction-actions";
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -86,7 +87,9 @@ interface TranscriptRichDisplayProps {
   content: string;
   recordingId?: string;
   audioUrl?: string;
+  memo?: string;
   onSaved?: (newContent: string) => void;
+  onMemoSaved?: (memo: string) => void;
 }
 
 export default function TranscriptRichDisplay({
@@ -94,7 +97,9 @@ export default function TranscriptRichDisplay({
   content,
   recordingId,
   audioUrl,
+  memo = "",
   onSaved,
+  onMemoSaved,
 }: TranscriptRichDisplayProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -106,7 +111,7 @@ export default function TranscriptRichDisplay({
   const [uploadingForIndex, setUploadingForIndex] = useState<number | null>(null);
   const [isDeletingIndex, setIsDeletingIndex] = useState<number | null>(null);
   const [isCopied, setIsCopied] = useState(false);
-  const [noteText, setNoteText] = useState("");
+  const [noteText, setNoteText] = useState(memo);
   const [isEditing, setIsEditing] = useState(false);
   const [editItems, setEditItems] = useState<TranscriptItem[]>([]);
   const [editRawText, setEditRawText] = useState("");
@@ -126,6 +131,11 @@ export default function TranscriptRichDisplay({
       currentTime >= item.startTime &&
       currentTime <= item.endTime
   );
+
+  // メモの初期値・props変更を同期
+  useEffect(() => {
+    setNoteText(memo ?? "");
+  }, [memo]);
 
   // アクティブなインデックスが変わった時だけ、その要素へスムーススクロールする
   useEffect(() => {
@@ -179,11 +189,15 @@ export default function TranscriptRichDisplay({
     setTimeout(() => setIsCopied(false), 2000);
   };
 
-  const handleSaveNote = () => {
-    console.log("メモ保存:", noteText);
-    alert(
-      "📝 メモを一時保存しました！\n（※バックエンド保存は次フェーズで実装します）"
-    );
+  const handleSaveNote = async () => {
+    if (!recordingId) return;
+    const result = await updateRecordingMemo(recordingId, noteText);
+    if (result.success) {
+      onMemoSaved?.(noteText);
+      alert("メモを保存しました");
+    } else {
+      alert(`メモの保存に失敗しました: ${result.error}`);
+    }
   };
 
   const handleSave = async () => {
@@ -192,11 +206,31 @@ export default function TranscriptRichDisplay({
       hasStructuredItems && itemsToSave.length > 0
         ? JSON.stringify(itemsToSave)
         : content;
+
+    // 差分を抽出して修正履歴に保存（Human-in-the-Loop）
+    if (recordingId && hasStructuredItems) {
+      const baseItems = items.filter((i) => i.type !== "feedback");
+      const savedItems = itemsToSave.filter((i) => i.type !== "feedback");
+      const corrections = baseItems
+        .map((orig, idx) => {
+          const corrected = savedItems[idx];
+          if (!corrected || orig.text === corrected.text) return null;
+          return {
+            original_text: orig.text,
+            corrected_text: corrected.text,
+          };
+        })
+        .filter((c): c is { original_text: string; corrected_text: string } => c != null);
+      if (corrections.length > 0) {
+        await saveTranscriptCorrections(recordingId, transcriptId, corrections);
+      }
+    }
+
     const result = await updateTranscriptContent(transcriptId, jsonStr);
     if (result.success) {
       onSaved?.(jsonStr);
       setIsEditing(false);
-      alert("✅ 保存しました");
+      alert("保存しました");
     } else {
       alert(`保存に失敗しました: ${result.error}`);
     }
@@ -287,46 +321,46 @@ export default function TranscriptRichDisplay({
         {displayEditItems.map((item, idx) => (
           <div
             key={idx}
-            className={`p-4 rounded-lg border ${
+            className={`p-4 rounded-xl border border-[#EBE8E3] transition-all duration-200 ${
               item.type === "feedback"
-                ? "bg-amber-50 border-amber-200"
-                : "bg-gray-50 border-gray-200"
+                ? "bg-[#FCF7F4] shadow-sm shadow-stone-200/50"
+                : "bg-white shadow-sm shadow-stone-200/50"
             }`}
           >
             {"speaker" in item && (
               <>
-                <label className="block text-xs font-medium text-gray-500 mb-1">
+                <label className="block text-xs font-medium text-[#9E9A95] mb-1">
                   発言者（旧形式）
                 </label>
                 <input
                   type="text"
                   value={item.speaker ?? ""}
                   onChange={(e) => updateItem(idx, "speaker", e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm mb-2"
+                  className="w-full px-3 py-2 border border-[#EBE8E3] rounded-xl text-sm mb-2 text-[#36332E] bg-white"
                 />
               </>
             )}
-            <label className="block text-xs font-medium text-gray-500 mb-1">
+            <label className="block text-xs font-medium text-[#9E9A95] mb-1">
               内容
             </label>
             <textarea
               value={item.text}
               onChange={(e) => updateItem(idx, "text", e.target.value)}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+              className="w-full px-3 py-2 border border-[#EBE8E3] rounded-xl text-sm text-[#36332E] bg-white"
             />
           </div>
         ))}
         <div className="flex gap-2 pt-2">
           <button
             onClick={handleSave}
-            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg font-medium text-sm"
+            className="px-4 py-2 bg-[#C87A55] hover:bg-[#B56A45] text-white rounded-xl font-medium text-sm transition-all duration-200"
           >
             保存する
           </button>
           <button
             onClick={handleCancelEdit}
-            className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg font-medium text-sm"
+            className="px-4 py-2 bg-white border border-[#EBE8E3] text-[#36332E] hover:bg-[#FCFAF8] hover:shadow-sm hover:shadow-stone-200/50 hover:-translate-y-px rounded-xl font-medium text-sm transition-all duration-200"
           >
             キャンセル
           </button>
@@ -343,11 +377,16 @@ export default function TranscriptRichDisplay({
           value={editRawText}
           onChange={(e) => setEditRawText(e.target.value)}
           rows={8}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+          className="w-full px-3 py-2 border border-[#EBE8E3] rounded-xl text-sm text-[#36332E] bg-white"
         />
         <div className="flex gap-2">
           <button
             onClick={async () => {
+              if (recordingId && content.trim() !== editRawText.trim()) {
+                await saveTranscriptCorrections(recordingId, transcriptId, [
+                  { original_text: content, corrected_text: editRawText },
+                ]);
+              }
               const result = await updateTranscriptContent(
                 transcriptId,
                 editRawText
@@ -355,16 +394,18 @@ export default function TranscriptRichDisplay({
               if (result.success) {
                 onSaved?.(editRawText);
                 setIsEditing(false);
-                alert("✅ 保存しました");
+                alert("保存しました");
+              } else {
+                alert(`保存に失敗しました: ${result.error}`);
               }
             }}
-            className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium"
+            className="px-4 py-2 bg-[#C87A55] hover:bg-[#B56A45] text-white rounded-xl text-sm font-medium transition-all duration-200"
           >
             保存する
           </button>
           <button
             onClick={handleCancelEdit}
-            className="px-4 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg text-sm font-medium"
+            className="px-4 py-2 bg-white border border-[#EBE8E3] text-[#36332E] hover:bg-[#FCFAF8] hover:shadow-sm hover:shadow-stone-200/50 hover:-translate-y-px rounded-xl text-sm font-medium transition-all duration-200"
           >
             キャンセル
           </button>
@@ -385,11 +426,11 @@ export default function TranscriptRichDisplay({
       <div>
         <button
           onClick={handleStartEdit}
-          className="mb-2 px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm"
+          className="mb-2 px-3 py-1.5 bg-white border border-[#EBE8E3] text-[#36332E] hover:bg-[#FCFAF8] hover:shadow-sm hover:shadow-stone-200/50 hover:-translate-y-px rounded-xl text-sm transition-all duration-200"
         >
-          ✏️ 編集する
+          編集
         </button>
-        <p className="text-gray-800 whitespace-pre-wrap leading-relaxed">
+        <p className="text-[#36332E] whitespace-pre-wrap leading-[2.2] tracking-[0.03em] font-medium">
           {content}
         </p>
       </div>
@@ -398,10 +439,10 @@ export default function TranscriptRichDisplay({
 
   // 表示モード（JSON配列）— カラオケUI
   return (
-    <div className="flex flex-col lg:flex-row gap-8 items-start">
-      <div className="flex-1 w-full">
+    <div className="flex flex-col lg:flex-row gap-8 items-start w-full bg-[#FDFCFB] min-h-full">
+      <div className="w-full lg:flex-1 min-w-0">
         {audioUrl && (
-          <div className="sticky top-0 z-10 bg-white pb-4 mb-4 border-b border-gray-100">
+          <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm pb-4 mb-4 border-b border-[#EBE8E3] shadow-sm shadow-stone-200/50">
             <audio
               ref={audioRef}
               src={audioUrl}
@@ -414,16 +455,16 @@ export default function TranscriptRichDisplay({
               className="w-full h-10 rounded-md shadow-sm"
             />
             <div className="flex items-center gap-2 mt-2">
-              <span className="text-xs text-gray-500">再生速度:</span>
+              <span className="text-xs text-[#9E9A95]">再生速度</span>
               {[1.0, 1.5, 2.0].map((rate) => (
                 <button
                   key={rate}
                   type="button"
                   onClick={() => handleSpeedChange(rate)}
-                  className={`px-2.5 py-1 rounded text-sm font-medium transition-colors ${
+                  className={`px-2.5 py-1 rounded-xl text-sm font-medium transition-all duration-200 ${
                     playbackRate === rate
-                      ? "bg-blue-500 text-white"
-                      : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                      ? "bg-[#C87A55] text-white shadow-sm shadow-stone-200/50"
+                      : "bg-white border border-[#EBE8E3] text-[#36332E] hover:bg-[#FCFAF8] hover:shadow-sm hover:shadow-stone-200/50 hover:-translate-y-px"
                   }`}
                 >
                   {rate}x
@@ -435,15 +476,15 @@ export default function TranscriptRichDisplay({
         <div className="mb-3 flex flex-wrap gap-2">
           <button
             onClick={handleStartEdit}
-            className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white rounded text-sm"
+            className="px-3 py-1.5 bg-white border border-[#EBE8E3] text-[#36332E] hover:bg-[#FCFAF8] hover:shadow-sm hover:shadow-stone-200/50 hover:-translate-y-px rounded-xl text-sm transition-all duration-200"
           >
-            ✏️ 編集する
+            編集
           </button>
           <button
             onClick={handleCopyText}
-            className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-sm border border-gray-200"
+            className="px-3 py-1.5 bg-white border border-[#EBE8E3] text-[#36332E] hover:bg-[#FCFAF8] hover:shadow-sm hover:shadow-stone-200/50 hover:-translate-y-px rounded-xl text-sm transition-all duration-200"
           >
-            {isCopied ? "✅ コピーしました" : "📋 テキストのみコピー"}
+            {isCopied ? "コピーしました" : "テキストをコピー"}
           </button>
         </div>
         <div>
@@ -451,37 +492,45 @@ export default function TranscriptRichDisplay({
           item.type === "feedback" ? (
             <div
               key={idx}
-              className="relative mb-6 p-5 bg-yellow-50 border-l-4 border-yellow-500 rounded-r-lg group"
+              className="relative mb-8 mt-2 ml-12 group animate-slide-up-fade-in"
             >
               {recordingId && (
                 <button
                   type="button"
                   onClick={() => handleDeleteFeedback(idx)}
                   disabled={isDeletingIndex === idx}
-                  className="absolute top-2 right-2 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors opacity-0 group-hover:opacity-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="アドバイスを削除"
+                  className="absolute -right-2 -top-2 z-10 px-2 py-1 bg-white text-[#9E9A95] hover:text-[#36332E] rounded-xl border border-[#EBE8E3] opacity-0 group-hover:opacity-100 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-xs hover:bg-[#FCFAF8] hover:shadow-sm hover:shadow-stone-200/50 hover:-translate-y-px"
+                  title="削除"
                 >
-                  {isDeletingIndex === idx ? "⏳" : "🗑️"}
+                  {isDeletingIndex === idx ? "削除中..." : "削除"}
                 </button>
               )}
-              <div className="flex items-center gap-2 mb-2 pr-8">
-                <span className="text-lg" aria-hidden>💡</span>
-                <span className="text-sm font-bold text-yellow-800">
-                  マネージャーのアドバイス
-                </span>
+              <div className="flex items-start gap-4">
+                <div className="flex-shrink-0 w-8 h-8 rounded-full bg-[#C87A55] text-white flex items-center justify-center text-xs font-semibold shadow-sm shadow-stone-200/50">
+                  M
+                </div>
+                <div className="relative flex-1 bg-white border border-[#EBE8E3] border-l-4 border-l-[#C87A55] rounded-2xl shadow-md shadow-stone-200/60 p-6">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-xs font-semibold text-[#C87A55] tracking-wide uppercase">
+                      Manager Advice
+                    </span>
+                  </div>
+                  <p className="text-[#36332E] leading-[2.2] tracking-[0.03em] font-medium whitespace-pre-wrap">
+                    {item.text}
+                  </p>
+                  {item.audioUrl && (
+                    <div className="mt-4 p-2 bg-[#FCFAF8] rounded-xl border border-[#EBE8E3] shadow-sm shadow-stone-200/50">
+                      <audio src={item.audioUrl} controls className="w-full h-8" />
+                    </div>
+                  )}
+                </div>
               </div>
-              <p className="text-yellow-900 leading-relaxed font-medium whitespace-pre-wrap">
-                {item.text}
-              </p>
-              {item.audioUrl && (
-                <audio src={item.audioUrl} controls className="h-8 mt-2" />
-              )}
             </div>
           ) : (
             <div
               key={idx}
               id={`transcript-item-${idx}`}
-              className={`group relative cursor-pointer transition-all duration-300 ease-in-out border-l-4 rounded-r px-4 py-3 mb-6 last:mb-0 ${
+              className={`group relative cursor-pointer transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)] rounded-xl px-6 py-5 mb-4 last:mb-0 ${
                 (() => {
                   const isActive =
                     !!audioUrl &&
@@ -490,8 +539,8 @@ export default function TranscriptRichDisplay({
                     currentTime >= item.startTime &&
                     currentTime <= item.endTime;
                   return isActive
-                    ? "bg-blue-50 border-blue-400"
-                    : "hover:bg-gray-50 border-transparent";
+                    ? "bg-gradient-to-r from-[#FCF7F4] to-white border border-[#EBE8E3] border-l-4 border-l-[#C87A55] shadow-md shadow-stone-200/50"
+                    : "bg-white border border-[#EBE8E3] border-l-4 border-l-transparent rounded-xl shadow-sm shadow-stone-200/50 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 ease-out";
                 })()
               }`}
               onClick={() => {
@@ -512,41 +561,41 @@ export default function TranscriptRichDisplay({
               {recordingId && (
                 <>
                   {uploadingForIndex === idx && isUploading ? (
-                    <span className="absolute top-2 right-2 inline-flex items-center gap-1 text-sm text-gray-500">
-                      <span className="animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full" />
-                      ⏳ 保存中...
+                    <span className="absolute top-2 right-2 inline-flex items-center gap-1 text-sm text-[#9E9A95]">
+                      <span className="animate-spin h-4 w-4 border-2 border-[#EBE8E3] border-t-[#C87A55] rounded-full" />
+                      保存中...
                     </span>
                   ) : recordingIndex === idx ? (
                     <button
                       type="button"
-                      className="absolute top-2 right-2 opacity-100 bg-red-100 text-red-700 px-3 py-1 rounded-full text-sm font-medium shadow-sm hover:bg-red-200 animate-pulse"
+                      className="absolute top-2 right-2 opacity-100 bg-[#C87A55] text-white px-3 py-1 rounded-xl text-sm font-medium hover:bg-[#B56A45] animate-pulse"
                       onClick={(e) => {
                         e.stopPropagation();
                         stopRecording(idx);
                       }}
                     >
-                      🛑 録音停止
+                      録音停止
                     </button>
                   ) : (
                     <button
                       type="button"
-                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm font-medium shadow-sm hover:bg-blue-200"
+                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-all duration-200 bg-white border border-[#EBE8E3] text-[#36332E] px-3 py-1 rounded-xl text-sm font-medium hover:bg-[#FCFAF8] hover:shadow-sm hover:shadow-stone-200/50 hover:-translate-y-px"
                       onClick={(e) => {
                         e.stopPropagation();
                         startRecording(idx);
                       }}
                     >
-                      🎤 音声で指導
+                      音声で指導
                     </button>
                   )}
                 </>
               )}
               {"startTime" in item && "endTime" in item && item.startTime != null && item.endTime != null && (
-                <span className="inline-block text-xs text-gray-500 mb-1 font-mono select-none">
+                <span className="inline-block font-mono text-[11px] tracking-widest text-[#9E9A95] mb-1 select-none">
                   {formatTime(item.startTime)} - {formatTime(item.endTime)}
                 </span>
               )}
-              <p className="text-gray-800 text-base leading-relaxed whitespace-pre-wrap pr-24">
+              <p className="text-[#36332E] text-base leading-[2.2] tracking-[0.03em] font-medium whitespace-pre-wrap pr-24">
                 {item.text}
               </p>
             </div>
@@ -554,21 +603,20 @@ export default function TranscriptRichDisplay({
         )}
         </div>
       </div>
-      <div className="w-full lg:w-80 flex-shrink-0 sticky top-4 space-y-3">
-        <div className="bg-white p-4 rounded-xl border border-gray-200 shadow-sm">
+      <div className="w-full lg:w-80 flex-shrink-0 lg:sticky lg:top-4 space-y-3">
+        <div className="border border-[#EBE8E3] bg-white shadow-sm shadow-stone-200/50 rounded-xl p-4 transition-all duration-200">
           <div className="flex items-center gap-2 mb-3">
-            <span className="text-lg">📝</span>
-            <h3 className="font-bold text-gray-800">トークメモ・抜粋</h3>
+            <h3 className="font-semibold text-[#36332E] tracking-wide">トークメモ・抜粋</h3>
           </div>
           <textarea
             value={noteText}
             onChange={(e) => setNoteText(e.target.value)}
             placeholder="商談の重要ポイントや、抜粋したいトークをここにメモできます..."
-            className="w-full h-64 p-3 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-y"
+            className="w-full h-64 p-3 border border-[#EBE8E3] rounded-xl text-sm focus:ring-2 focus:ring-[#C87A55]/30 focus:border-[#C87A55] resize-y leading-[2.2] tracking-[0.03em] text-[#36332E]"
           />
           <button
             onClick={handleSaveNote}
-            className="w-full mt-3 py-2 bg-gray-800 hover:bg-gray-900 text-white rounded-lg text-sm font-medium transition-colors"
+            className="w-full mt-3 py-2 bg-white border border-[#EBE8E3] text-[#36332E] hover:bg-[#FCFAF8] hover:shadow-sm hover:shadow-stone-200/50 hover:-translate-y-px rounded-xl text-sm font-medium transition-all duration-200"
           >
             メモを保存
           </button>

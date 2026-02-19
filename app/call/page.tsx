@@ -141,35 +141,35 @@ export default function CallPage() {
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
-        <p className="text-gray-500">読み込み中...</p>
+        <p className="text-stone-500">読み込み中...</p>
       </div>
     );
   }
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50">
+    <div className="h-screen flex flex-col bg-stone-50">
       {/* ヘッダー */}
-      <div className="bg-gradient-to-r from-orange-600 to-red-600 text-white px-6 py-3 shadow-lg">
+      <div className="bg-[#4A463F] text-white px-6 py-3 shadow-lg">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold">📞 実戦コックピット</h1>
+            <h1 className="text-xl font-bold">実戦コックピット</h1>
             <p className="text-xs opacity-90 mt-1">
-              💡 基本シナリオスタート → チェック項目で動的展開
+              基本シナリオスタート → チェック項目で動的展開
             </p>
           </div>
           <div className="flex gap-2">
             <button
               onClick={handleReload}
-              className="px-4 py-2 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg text-sm font-medium transition-colors flex items-center gap-2"
+              className="px-4 py-2 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg text-sm font-medium transition-colors"
               title="ワークスペースの変更を反映"
             >
-              🔄 更新
+              更新
             </button>
             <Link
               href="/workspace"
               className="px-4 py-2 bg-white bg-opacity-20 hover:bg-opacity-30 text-white rounded-lg text-sm font-medium transition-colors"
             >
-              🛠️ ワークスペースへ
+              ワークスペースへ
             </Link>
             <Link
               href="/"
@@ -182,17 +182,17 @@ export default function CallPage() {
       </div>
 
       {/* タブナビゲーション */}
-      <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border-b-2 border-blue-200 shadow-md">
+      <div className="bg-white border-b-2 border-stone-200 shadow-md">
         <div className="max-w-7xl mx-auto flex overflow-x-auto">
           <button
             onClick={() => handleSelectTab("main_scenario")}
             className={`px-6 py-4 font-bold transition-all whitespace-nowrap ${
               activeTab === "main_scenario"
-                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-b-4 border-blue-800"
-                : "bg-white text-gray-700 hover:bg-blue-100 border-b-2 border-transparent"
+                ? "bg-[#4A463F] text-white border-b-4 border-stone-800"
+                : "bg-white text-stone-700 hover:bg-stone-100 border-b-2 border-transparent"
             }`}
           >
-            📖 基本シナリオ（代表突破）
+            基本シナリオ（代表突破）
           </button>
 
           {situations.map((sit) => (
@@ -201,20 +201,16 @@ export default function CallPage() {
               onClick={() => handleSelectTab(sit.id)}
               className={`px-6 py-4 font-bold transition-all whitespace-nowrap ${
                 activeTab === sit.id
-                  ? "text-white border-b-4"
-                  : "bg-white text-gray-700 hover:bg-gray-100 border-b-2 border-transparent"
+                  ? "bg-[#4A463F] text-white border-b-4 border-stone-800"
+                  : "bg-white text-stone-700 hover:bg-stone-100 border-b-2 border-transparent"
               }`}
-              style={{
-                backgroundColor: activeTab === sit.id ? sit.color : undefined,
-                borderBottomColor: activeTab === sit.id ? sit.color : undefined,
-              }}
             >
-              {sit.icon} {sit.name}
+              {sit.name}
             </button>
           ))}
 
           {situations.length === 0 && (
-            <div className="px-6 py-4 text-sm text-gray-500 bg-white">
+            <div className="px-6 py-4 text-sm text-stone-500 bg-white">
               ※ワークスペースで状況タグを作成してください
             </div>
           )}
@@ -223,19 +219,18 @@ export default function CallPage() {
 
       <div className="flex-1 flex overflow-hidden">
         {/* 中央: トーク */}
-        <div className="flex-1 overflow-y-auto p-4 bg-gray-50">
+        <div className="flex-1 overflow-y-auto p-4 bg-stone-50">
           <div className="max-w-4xl mx-auto">
             {displayItems.length === 0 && (
-              <div className="text-center py-20 bg-white rounded-xl shadow-md">
-                <span className="text-6xl mb-4 block">📭</span>
-                <p className="text-lg text-gray-600 mb-3">
+              <div className="text-center py-20 bg-white rounded-xl shadow-md border border-stone-200">
+                <p className="text-lg text-stone-600 mb-3">
                   {activeTab === "main_scenario"
                     ? "基本シナリオがまだありません"
                     : "この状況タブに紐づく部品トークがありません"}
                 </p>
                 <Link
                   href="/workspace"
-                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition-colors inline-block"
+                  className="px-6 py-3 bg-[#4A463F] hover:bg-[#3E3A34] text-white rounded-lg font-medium transition-colors inline-block"
                 >
                   ワークスペースでトークを作成
                 </Link>
@@ -245,15 +240,14 @@ export default function CallPage() {
             {displayItems.length > 0 && (
               <div>
                 {activeTab === "main_scenario" && (
-                  <div className="mb-4 p-4 bg-gradient-to-r from-blue-100 to-indigo-100 rounded-lg border-2 border-blue-300 shadow-md">
+                  <div className="mb-4 p-4 bg-[#FAF9F6] rounded-lg border border-stone-200">
                     <div className="flex items-center gap-3">
-                      <span className="text-3xl">📖</span>
                       <div>
-                        <h3 className="text-lg font-bold text-gray-800">
+                        <h3 className="text-lg font-bold text-stone-800">
                           基本シナリオ（代表突破〜担当者接続まで）
                         </h3>
-                        <p className="text-sm text-gray-700">
-                          💬 まずはこのトークで進めてください。右上のチェック項目がONになると、追加のトークが自動で表示されます。
+                        <p className="text-sm text-stone-700">
+                          まずはこのトークで進めてください。右上のチェック項目がONになると、追加のトークが自動で表示されます。
                         </p>
                       </div>
                     </div>
@@ -284,9 +278,9 @@ export default function CallPage() {
                 </div>
 
                 {expandedPath.length > 0 && (
-                  <div className="mt-8 pt-8 border-t-4 border-green-300">
-                    <h2 className="text-xl font-bold text-green-700 mb-4 flex items-center gap-2">
-                      <span>↳</span> 次のトーク（分岐展開）
+                  <div className="mt-8 pt-8 border-t-4 border-stone-300">
+                    <h2 className="text-xl font-bold text-stone-700 mb-4">
+                      次のトーク（分岐展開）
                     </h2>
                     <div className="space-y-3">
                       {expandedPath.map((item, index) => (
@@ -310,10 +304,10 @@ export default function CallPage() {
         </div>
 
         {/* 右: チェック＆武器庫 */}
-        <div className="w-80 bg-white border-l-4 border-orange-400 flex flex-col overflow-hidden shadow-xl">
-          <div className="border-b-2 border-orange-300">
-            <div className="bg-gradient-to-r from-green-500 to-emerald-500 text-white p-3">
-              <h2 className="text-sm font-bold">✅ チェック項目</h2>
+        <div className="w-80 bg-white border-l-4 border-stone-300 flex flex-col overflow-hidden shadow-xl">
+          <div className="border-b-2 border-stone-200">
+            <div className="bg-[#4A463F] text-white p-3">
+              <h2 className="text-sm font-bold">チェック項目</h2>
               <p className="text-xs opacity-90 mt-1">
                 クリックでON → 追加トークが動的に表示
               </p>
@@ -321,7 +315,7 @@ export default function CallPage() {
 
             <div className="p-3 max-h-80 overflow-y-auto">
               {checkItems.length === 0 && (
-                <p className="text-center py-6 text-gray-500 text-sm">
+                <p className="text-center py-6 text-stone-500 text-sm">
                   ワークスペースでチェック項目を作成してください
                 </p>
               )}
@@ -333,20 +327,20 @@ export default function CallPage() {
                     onClick={() => handleToggleCheck(check.id)}
                     className={`w-full text-left px-3 py-2 mb-2 rounded-lg border-2 transition-all ${
                       isChecked
-                        ? "bg-green-100 border-green-500 ring-2 ring-green-300"
-                        : "bg-white border-gray-200 hover:border-green-400"
+                        ? "bg-stone-100 border-stone-500 ring-2 ring-stone-300"
+                        : "bg-white border-stone-200 hover:border-stone-400"
                     }`}
                   >
                     <div className="flex items-center gap-2">
-                      <span className={`text-xl ${isChecked ? "text-green-600" : "text-gray-400"}`}>
-                        {isChecked ? "✅" : "⬜"}
+                      <span className={`text-sm ${isChecked ? "text-stone-600" : "text-stone-400"}`}>
+                        {isChecked ? "●" : "○"}
                       </span>
                       <div>
-                        <h4 className={`text-sm font-bold ${isChecked ? "text-green-800" : "text-gray-800"}`}>
+                        <h4 className={`text-sm font-bold ${isChecked ? "text-stone-800" : "text-stone-800"}`}>
                           {check.name}
                         </h4>
                         {check.description && (
-                          <p className="text-xs text-gray-600">{check.description}</p>
+                          <p className="text-xs text-stone-600">{check.description}</p>
                         )}
                       </div>
                     </div>
@@ -357,18 +351,18 @@ export default function CallPage() {
           </div>
 
           <div className="flex-1 overflow-hidden flex flex-col">
-            <div className="bg-gradient-to-r from-orange-500 to-red-500 text-white p-3">
-              <h2 className="text-sm font-bold">🛡️ Quick Response</h2>
+            <div className="bg-[#5C574F] text-white p-3">
+              <h2 className="text-sm font-bold">Quick Response</h2>
               <p className="text-xs opacity-90 mt-1">想定外の質問に即対応</p>
             </div>
 
             <div className="flex-1 overflow-y-auto p-3">
               {quickResponseItems.length === 0 && (
-                <div className="text-center py-12 text-gray-500 text-sm">
+                <div className="text-center py-12 text-stone-500 text-sm">
                   <p className="mb-3">レスポンストークがありません</p>
                   <Link
                     href="/workspace"
-                    className="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-xs font-medium transition-colors inline-block"
+                    className="px-3 py-2 bg-[#4A463F] hover:bg-[#3E3A34] text-white rounded-lg text-xs font-medium transition-colors inline-block"
                   >
                     ワークスペースへ
                   </Link>
@@ -387,7 +381,7 @@ export default function CallPage() {
                     {/* アコーディオンヘッダー */}
                     <button
                       onClick={() => setExpandedCategoryId(isExpanded ? null : categoryId)}
-                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all hover:bg-orange-50"
+                      className="w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all hover:bg-stone-50"
                       style={{
                         backgroundColor: isExpanded ? `${categoryColor}15` : 'transparent',
                         borderLeft: `4px solid ${categoryColor}`,
@@ -398,7 +392,7 @@ export default function CallPage() {
                         <h3 className="text-sm font-bold text-gray-800">
                           {categoryName}
                         </h3>
-                        <span className="px-2 py-0.5 bg-orange-100 text-orange-700 rounded-full text-xs font-bold">
+                        <span className="px-2 py-0.5 bg-stone-100 text-stone-700 rounded-full text-xs font-bold">
                           {items.length}
                         </span>
                       </div>
@@ -481,79 +475,78 @@ function TalkAccordion({
     <div
       className={`bg-white rounded-xl shadow-md overflow-hidden border-2 transition-all ${
         isDynamic
-          ? "border-green-400 ring-4 ring-green-200"
-          : "border-gray-200 hover:border-blue-400"
+          ? "border-stone-400 ring-4 ring-stone-200"
+          : "border-stone-200 hover:border-stone-400"
       }`}
     >
       <button
         onClick={onToggle}
-        className="w-full px-4 py-3 flex items-center justify-between hover:bg-blue-50 transition-colors"
+        className="w-full px-4 py-3 flex items-center justify-between hover:bg-stone-50 transition-colors"
       >
         <div className="flex items-center gap-3 flex-1 text-left">
-          <span className="text-lg font-bold text-blue-600">#{index}</span>
+          <span className="text-lg font-bold text-stone-600">#{index}</span>
           {isDynamic && (
-            <span className="px-2 py-1 bg-green-500 text-white rounded-full text-xs font-bold animate-pulse">
+            <span className="px-2 py-1 bg-[#4A463F] text-white rounded-full text-xs font-bold animate-pulse">
               NEW
             </span>
           )}
-          <span className="text-xl">{isExpanded ? "📖" : "📕"}</span>
           <div>
-            <h3 className="text-base font-bold text-gray-800">{item.title}</h3>
+            <h3 className="text-base font-bold text-stone-800">{item.title}</h3>
             {item.hearing_purpose && !isExpanded && (
-              <p className="text-xs text-blue-600 mt-1">🎯 {item.hearing_purpose}</p>
+              <p className="text-xs text-stone-600 mt-1">{item.hearing_purpose}</p>
             )}
           </div>
         </div>
         <div className="flex items-center gap-2">
           {responses.length > 0 && (
-            <span className="px-2 py-1 bg-green-100 text-green-700 rounded-full text-xs font-bold">
+            <span className="px-2 py-1 bg-stone-100 text-stone-700 rounded-full text-xs font-bold">
               分岐 {responses.length}
             </span>
           )}
-          <span className="text-lg text-gray-400">{isExpanded ? "▲" : "▼"}</span>
+          <span className="text-lg text-stone-400">{isExpanded ? "▲" : "▼"}</span>
         </div>
       </button>
 
       {isExpanded && (
-        <div className="px-4 py-3 bg-gray-50 border-t-2 border-gray-200">
+        <div className="px-4 py-3 bg-stone-50 border-t-2 border-stone-200">
           {item.hearing_purpose && (
-            <div className="mb-3 p-3 bg-blue-50 rounded-lg border-2 border-blue-300">
-              <p className="text-xs font-bold text-blue-700 flex items-center gap-2">
-                <span>🎯</span> ヒアリングすべき内容
+            <div className="mb-3 p-3 bg-[#FAF9F6] rounded-lg border border-stone-200">
+              <p className="text-xs font-bold text-stone-700">
+                ヒアリングすべき内容
               </p>
-              <p className="text-blue-800 mt-1 text-sm">{item.hearing_purpose}</p>
+              <p className="text-stone-800 mt-1 text-sm">{item.hearing_purpose}</p>
             </div>
           )}
 
-          <div className="mb-3 p-4 bg-green-50 rounded-lg border-2 border-green-400">
-            <p className="text-xs font-bold text-green-700 flex items-center gap-2 mb-2">
-              <span>🗣️</span> 実際の聞き方
+          <div className="mb-3 p-4 bg-stone-50 rounded-lg border border-stone-200">
+            <p className="text-xs font-bold text-stone-700 mb-2">
+              実際の聞き方
             </p>
-            <p className="text-gray-800 whitespace-pre-wrap leading-relaxed font-medium text-lg">
+            <p className="text-stone-800 whitespace-pre-wrap leading-[2.2] tracking-[0.03em] font-medium text-lg">
               {item.content}
             </p>
           </div>
 
           {item.strategy_note && (
-            <div className="mb-3 p-3 bg-purple-50 rounded-lg border-2 border-purple-300">
-              <p className="text-xs font-bold text-purple-700 flex items-center gap-2">
-                <span>💡</span> トップの狙い
+            <div className="mb-3 p-3 bg-stone-50 rounded-lg border border-stone-200">
+              <p className="text-xs font-bold text-stone-700">
+                トップの狙い
               </p>
-              <p className="text-purple-800 mt-1 text-sm">{item.strategy_note}</p>
+              <p className="text-stone-800 mt-1 text-sm">{item.strategy_note}</p>
             </div>
           )}
 
           {responses.length > 0 && (
-            <div className="mt-3 pt-3 border-t-2 border-gray-300">
-              <p className="text-xs font-bold text-gray-700 mb-2 flex items-center gap-2">
-                <span>↓</span> 顧客の反応:
+            <div className="mt-3 pt-3 border-t-2 border-stone-300">
+              <p className="text-xs font-bold text-stone-700 mb-2">
+                顧客の反応
               </p>
               <div className="flex flex-wrap gap-2">
                 {responses.map((response) => (
                   <button
                     key={response.id}
                     onClick={() => onResponseClick(item.id, response.next_item_id)}
-                    className="px-4 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-lg font-bold transition-all transform hover:scale-105 shadow-lg text-sm"
+                    className="px-4 py-2 bg-[#4A463F] hover:bg-[#3E3A34] text-white rounded-lg font-bold transition-all text-sm"
                   >
                     {response.response_text}
                   </button>
@@ -574,11 +567,11 @@ function QuickResponseButton({ item }: { item: ScriptItem }) {
     <>
       <button
         onClick={() => setShowDetail(true)}
-        className="w-full px-3 py-2 bg-white hover:bg-orange-50 border-2 border-gray-200 hover:border-orange-400 rounded-lg text-left transition-all shadow-sm hover:shadow-md"
+        className="w-full px-3 py-2 bg-white hover:bg-stone-50 border-2 border-stone-200 hover:border-stone-400 rounded-lg text-left transition-all"
       >
-        <div className="font-bold text-gray-800 text-sm">{item.title}</div>
+        <div className="font-bold text-stone-800 text-sm">{item.title}</div>
         {item.hearing_purpose && (
-          <div className="text-xs text-blue-600 mt-1">🎯 {item.hearing_purpose}</div>
+          <div className="text-xs text-stone-600 mt-1">{item.hearing_purpose}</div>
         )}
       </button>
 
@@ -595,30 +588,30 @@ function QuickResponseButton({ item }: { item: ScriptItem }) {
               <h2 className="text-xl font-bold text-gray-800">{item.title}</h2>
               <button
                 onClick={() => setShowDetail(false)}
-                className="px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded-lg text-sm font-medium transition-colors"
+                className="px-3 py-1 bg-stone-200 hover:bg-stone-300 rounded-lg text-sm font-medium transition-colors"
               >
-                ✖️
+                閉じる
               </button>
             </div>
 
             {item.hearing_purpose && (
-              <div className="mb-3 p-3 bg-blue-50 rounded-lg border-2 border-blue-200">
-                <h3 className="font-bold text-blue-800 mb-2 text-sm">🎯 ヒアリング内容</h3>
-                <p className="text-blue-700">{item.hearing_purpose}</p>
+              <div className="mb-3 p-3 bg-[#FAF9F6] rounded-lg border border-stone-200">
+                <h3 className="font-bold text-stone-800 mb-2 text-sm">ヒアリング内容</h3>
+                <p className="text-stone-700">{item.hearing_purpose}</p>
               </div>
             )}
 
-            <div className="mb-3 p-4 bg-green-50 rounded-lg border-2 border-green-300">
-              <h3 className="font-bold text-green-800 mb-2 text-sm">🗣️ 実際の聞き方</h3>
-              <p className="text-gray-800 whitespace-pre-wrap text-base leading-relaxed">
+            <div className="mb-3 p-4 bg-stone-50 rounded-lg border border-stone-200">
+              <h3 className="font-bold text-stone-800 mb-2 text-sm">実際の聞き方</h3>
+              <p className="text-stone-800 whitespace-pre-wrap text-base leading-[2.2] tracking-[0.03em]">
                 {item.content}
               </p>
             </div>
 
             {item.strategy_note && (
-              <div className="p-3 bg-purple-50 rounded-lg border-2 border-purple-200">
-                <h3 className="font-bold text-purple-800 mb-2 text-sm">💡 トップの狙い</h3>
-                <p className="text-purple-700 whitespace-pre-wrap">{item.strategy_note}</p>
+              <div className="p-3 bg-stone-50 rounded-lg border border-stone-200">
+                <h3 className="font-bold text-stone-800 mb-2 text-sm">トップの狙い</h3>
+                <p className="text-stone-700 whitespace-pre-wrap">{item.strategy_note}</p>
               </div>
             )}
           </div>
