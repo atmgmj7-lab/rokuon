@@ -104,19 +104,21 @@ export async function addInlineVoiceFeedback(
       args: [newContent, transcriptId],
     });
 
-    revalidatePath("/");
-    revalidatePath("/recordings");
+    try {
+      revalidatePath("/");
+      revalidatePath("/recordings");
+    } catch (revalidateError) {
+      console.warn("⚠️ revalidatePath スキップ:", revalidateError);
+    }
 
     return {
       success: true,
       data: { newContent },
     };
   } catch (error) {
+    console.error("FULL_STACK_TRACE:", error instanceof Error ? error.stack : String(error));
     console.error("フィードバック保存エラー:", error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "不明なエラーが発生しました",
-    };
+    throw error;
   }
 }
 

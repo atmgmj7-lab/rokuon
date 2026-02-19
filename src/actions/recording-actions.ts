@@ -155,8 +155,12 @@ export async function uploadAndTranscribe(formData: FormData) {
 
     console.log("✅ データベースに保存完了");
 
-    // ページを再検証
-    revalidatePath("/");
+    // ページを再検証（Vercel サーバーレスで mkdir エラーが出る場合があるため try-catch）
+    try {
+      revalidatePath("/");
+    } catch (revalidateError) {
+      console.warn("⚠️ revalidatePath スキップ（キャッシュ無効化のみ失敗）:", revalidateError);
+    }
 
     return {
       success: true,
@@ -168,11 +172,9 @@ export async function uploadAndTranscribe(formData: FormData) {
       },
     };
   } catch (error) {
+    console.error("FULL_STACK_TRACE:", error instanceof Error ? error.stack : String(error));
     console.error("❌ エラー:", error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "不明なエラーが発生しました",
-    };
+    throw error;
   }
 }
 
@@ -281,7 +283,11 @@ export async function uploadFeedback(formData: FormData, parentRecordingId: stri
 
     console.log("✅ 指導音声をデータベースに保存完了");
 
-    revalidatePath("/recordings");
+    try {
+      revalidatePath("/recordings");
+    } catch (revalidateError) {
+      console.warn("⚠️ revalidatePath スキップ:", revalidateError);
+    }
 
     return {
       success: true,
@@ -293,11 +299,9 @@ export async function uploadFeedback(formData: FormData, parentRecordingId: stri
       },
     };
   } catch (error) {
+    console.error("FULL_STACK_TRACE:", error instanceof Error ? error.stack : String(error));
     console.error("❌ エラー:", error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "不明なエラーが発生しました",
-    };
+    throw error;
   }
 }
 

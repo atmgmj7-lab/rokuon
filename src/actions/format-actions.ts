@@ -221,6 +221,7 @@ ${rawText}`;
     ];
     return { success: true, json: JSON.stringify(fallbackArray) };
   } catch (error) {
+    console.error("FULL_STACK_TRACE [formatCallTranscript]:", error instanceof Error ? error.stack : String(error));
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("❌ [DEBUG] formatCallTranscript: Gemini API通信エラー:", errorMessage);
     const fallbackArray = [
@@ -305,6 +306,7 @@ ${feedbackRawText}`;
     }
     return { success: true, json: JSON.stringify(fallbackArray) };
   } catch (error) {
+    console.error("FULL_STACK_TRACE [mergeFeedbackIntoTranscript]:", error instanceof Error ? error.stack : String(error));
     const errorMessage = error instanceof Error ? error.message : String(error);
     console.error("❌ [DEBUG] mergeFeedbackIntoTranscript: Gemini API通信エラー:", errorMessage);
     let fallbackArray: { type: "paragraph" | "feedback"; text: string }[];
