@@ -1,6 +1,6 @@
 "use server";
 
-import { GoogleGenerativeAI, SchemaType } from "@google/generative-ai";
+import { GoogleGenerativeAI, SchemaType, type ResponseSchema } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY ?? "");
 
@@ -17,7 +17,7 @@ const transcriptResponseSchema = {
     },
     required: ["type", "text", "startTime", "endTime"],
   },
-};
+} as const satisfies ResponseSchema;
 
 /**
  * AIレスポンスからマークダウンのコードブロックを除去し、JSON文字列を抽出する。
@@ -74,7 +74,7 @@ function parseJsonRobust(
  */
 async function generateWithFallback(
   prompt: string,
-  responseSchema?: { type: string; items: object }
+  responseSchema?: ResponseSchema
 ): Promise<string> {
   const apiKey = process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY;
 

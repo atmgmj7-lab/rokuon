@@ -47,7 +47,12 @@ export default async function DictionaryPage() {
           <h2 className="text-xl font-bold text-stone-800 mb-6">
             用語を追加
           </h2>
-          <form action={addDictionary} className="space-y-5">
+          <form
+            action={async (formData) => {
+              await addDictionary(formData);
+            }}
+            className="space-y-5"
+          >
             <div>
               <label
                 htmlFor="term"
@@ -161,7 +166,9 @@ export default async function DictionaryPage() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <form
-                          action={deleteDictionary.bind(null, item.id)}
+                          action={async () => {
+                            await deleteDictionary(item.id);
+                          }}
                           className="inline"
                         >
                           <button
