@@ -14,7 +14,7 @@ import { getDictionaries } from "@/src/actions/dictionary-actions";
 import { getCorrectionTerms } from "@/src/actions/correction-actions";
 import { mergeFeedbackIntoTranscript } from "@/src/actions/format-actions";
 import { uploadToR2 } from "@/src/lib/r2";
-import OpenAI from "openai";
+import OpenAI, { toFile } from "openai";
 
 function getExtension(filename: string): string {
   const lastDot = filename.lastIndexOf(".");
@@ -40,6 +40,10 @@ const openaiClient = new OpenAI({
 });
 
 export async function POST(request: NextRequest) {
+  process.env.TMPDIR = "/tmp";
+  process.env.TEMP = "/tmp";
+  process.env.TMP = "/tmp";
+
   try {
     const fileName = request.headers.get("x-file-name") || "recording.webm";
     const title = request.headers.get("x-title") || "";
@@ -71,7 +75,9 @@ export async function POST(request: NextRequest) {
 
     const audioUrl = await uploadToR2(buffer, objectName, contentType);
 
-    const fileForWhisper = new File([buffer], objectName, { type: contentType });
+    const fileForWhisper = await toFile(buffer, objectName, {
+      type: contentType,
+    });
 
     const dicts = await getDictionaries();
     const correctionTerms = await getCorrectionTerms();

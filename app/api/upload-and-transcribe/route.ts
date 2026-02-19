@@ -14,7 +14,7 @@ import { getDictionaries } from "@/src/actions/dictionary-actions";
 import { getCorrectionTerms } from "@/src/actions/correction-actions";
 import { formatCallTranscript } from "@/src/actions/format-actions";
 import { uploadToR2 } from "@/src/lib/r2";
-import OpenAI from "openai";
+import OpenAI, { toFile } from "openai";
 
 function getExtension(filename: string): string {
   const lastDot = filename.lastIndexOf(".");
@@ -39,6 +39,11 @@ const openaiClient = new OpenAI({
 });
 
 export async function POST(request: NextRequest) {
+  // 一時ファイルを /tmp に強制（Vercel で唯一書き込み可能なディレクトリ）
+  process.env.TMPDIR = "/tmp";
+  process.env.TEMP = "/tmp";
+  process.env.TMP = "/tmp";
+
   try {
     const fileName = request.headers.get("x-file-name") || "audio.webm";
     const title = request.headers.get("x-title") || "";
@@ -64,8 +69,10 @@ export async function POST(request: NextRequest) {
     // 1. R2 に直接アップロード（メモリ上の buffer のみ使用、fs 不使用）
     const audioUrl = await uploadToR2(buffer, objectName, contentType);
 
-    // 2. Whisper: Buffer から File オブジェクトを生成（ファイルパスは一切使わない）
-    const fileForWhisper = new File([buffer], objectName, { type: contentType });
+    // 2. Whisper: OpenAI toFile で完全メモリ形式（ディスク書き込みゼロ）
+    const fileForWhisper = await toFile(buffer, objectName, {
+      type: contentType,
+    });
 
     const dicts = await getDictionaries();
     const correctionTerms = await getCorrectionTerms();

@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { updateTranscriptContent, updateRecordingMemo } from "@/src/actions/recording-actions";
-import { addInlineVoiceFeedback, deleteInlineVoiceFeedback } from "@/src/actions/feedback-actions";
+import { deleteInlineVoiceFeedback } from "@/src/actions/feedback-actions";
 import { saveTranscriptCorrections } from "@/src/actions/correction-actions";
 
 function formatTime(seconds: number): string {
@@ -270,14 +270,20 @@ export default function TranscriptRichDisplay({
         const mimeType = recorder.mimeType || "audio/webm";
         const blob = new Blob(audioChunksRef.current, { type: mimeType });
         const ext = mimeType.includes("mp4") ? "m4a" : mimeType.includes("ogg") ? "ogg" : "webm";
-        const formData = new FormData();
-        formData.append("audio", blob, `recording.${ext}`);
-
         setRecordingIndex(null);
         setUploadingForIndex(index);
         setIsUploading(true);
 
-        const result = await addInlineVoiceFeedback(recordingId, index, formData);
+        const res = await fetch("/api/add-inline-feedback", {
+          method: "POST",
+          body: blob,
+          headers: {
+            "x-recording-id": recordingId,
+            "x-insert-after-index": String(index),
+            "x-file-ext": ext,
+          },
+        });
+        const result = await res.json();
         setIsUploading(false);
         setUploadingForIndex(null);
 
