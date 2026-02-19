@@ -41,7 +41,7 @@ async function transcribeWithWhisper(
   prompt: string
 ) {
   const formData = new FormData();
-  formData.append("file", new Blob([buffer], { type: contentType }), filename);
+  formData.append("file", new Blob([new Uint8Array(buffer)], { type: contentType }), filename);
   formData.append("model", "whisper-1");
   formData.append("language", "ja");
   formData.append("prompt", prompt);
