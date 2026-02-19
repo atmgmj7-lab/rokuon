@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "migrate": "tsx scripts/migrate.ts",
-    "migrate:advanced": "tsx scripts/migrate-advanced.ts"
+    "migrate:advanced": "tsx scripts/migrate-advanced.ts",
+    "migrate:audio-categories": "tsx scripts/migrate-audio-categories.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.993.0",

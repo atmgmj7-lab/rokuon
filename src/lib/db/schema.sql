@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS recordings (
   category TEXT,
   -- 録音の音声種類（会議, 商談, メモ, 指導など）※ワークスペースカテゴリとは別
   audio_category TEXT,
+  -- 音声カテゴリID（audio_categories テーブルへのFK）
+  audio_category_id TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   FOREIGN KEY (parent_id) REFERENCES recordings(id) ON DELETE CASCADE
@@ -211,10 +213,19 @@ CREATE TABLE IF NOT EXISTS timeline_check_items (
 -- Phase 8: 動的カテゴリとタイムライン
 -- ========================================
 
--- カテゴリ（動的カテゴリ管理）
+-- カテゴリ（動的カテゴリ管理・ワークスペース用）
 CREATE TABLE IF NOT EXISTS categories (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
+  color TEXT DEFAULT '#6B7280',
+  sort_order INTEGER DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
+
+-- 音声カテゴリ（録音の種類: 商談, 会議, 指導など）※ワークスペースカテゴリとは完全に独立
+CREATE TABLE IF NOT EXISTS audio_categories (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
   color TEXT DEFAULT '#6B7280',
   sort_order INTEGER DEFAULT 0,
   created_at INTEGER NOT NULL

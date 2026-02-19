@@ -10,9 +10,7 @@ import {
   deleteRecording,
   updateRecordingAudioCategory,
 } from "@/src/actions/recording-actions";
-import { AUDIO_CATEGORY_OPTIONS } from "@/src/lib/recording-constants";
-import { setRecordingCategory } from "@/src/actions/category-actions";
-import type { RecordingCategory } from "@/src/actions/category-actions";
+import type { AudioCategory } from "@/src/actions/audio-category-actions";
 
 interface Recording {
   id: string;
@@ -23,10 +21,9 @@ interface Recording {
   file_size: number;
   recording_type: string;
   parent_id: string | null;
-  category_id: string | null;
   custom_id?: string;
   memo?: string;
-  category?: string;
+  audio_category_id?: string;
   audio_category?: string;
   created_at: number;
   updated_at: number;
@@ -35,7 +32,7 @@ interface Recording {
 interface RecordingCardProps {
   recording: Recording;
   children: Recording[];
-  categories?: RecordingCategory[];
+  audioCategories?: AudioCategory[];
 }
 
 // フィードバック音声用の文字起こしボタン
@@ -85,24 +82,20 @@ function ChildTranscriptButton({ recordingId, audioUrl }: { recordingId: string;
 }
 
 
-export default function RecordingCard({ recording, children, categories = [] }: RecordingCardProps) {
+export default function RecordingCard({ recording, children, audioCategories = [] }: RecordingCardProps) {
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   const [showTranscript, setShowTranscript] = useState(false);
   const [transcript, setTranscript] = useState<{ id: string; content: string; learning_pending?: boolean } | null | undefined>(undefined);
   const [editingCustomId, setEditingCustomId] = useState(false);
   const [editingCustomIdValue, setEditingCustomIdValue] = useState(recording.custom_id || "");
-  const [localCategoryId, setLocalCategoryId] = useState<string | null>(recording.category_id || null);
-  const [localCategory, setLocalCategory] = useState(recording.category || "");
-  const [localAudioCategory, setLocalAudioCategory] = useState(recording.audio_category || "");
+  const [localAudioCategoryId, setLocalAudioCategoryId] = useState<string | null>(recording.audio_category_id || null);
   const [localMemo, setLocalMemo] = useState(recording.memo || "");
 
   useEffect(() => {
-    setLocalCategoryId(recording.category_id || null);
-    setLocalCategory(recording.category || "");
-    setLocalAudioCategory(recording.audio_category || "");
+    setLocalAudioCategoryId(recording.audio_category_id || null);
     setLocalMemo(recording.memo || "");
-  }, [recording.category_id, recording.category, recording.audio_category, recording.memo]);
+  }, [recording.audio_category_id, recording.memo]);
 
   // 型バッジ
   const getTypeBadge = (type: string) => {
@@ -148,21 +141,11 @@ export default function RecordingCard({ recording, children, categories = [] }: 
     }
   };
 
-  // カテゴリを保存（category_id で紐付け）
-  const handleSaveCategory = async (categoryId: string | null) => {
-    const result = await setRecordingCategory(recording.id, categoryId);
+  // 音声カテゴリを保存
+  const handleSaveAudioCategory = async (audioCategoryId: string | null) => {
+    const result = await updateRecordingAudioCategory(recording.id, audioCategoryId || null);
     if (result.success) {
-      setLocalCategoryId(categoryId);
-      const cat = categoryId ? categories.find((c) => c.id === categoryId) : null;
-      setLocalCategory(cat?.name ?? "");
-    }
-  };
-
-  // 音声種類（audio_category）を保存
-  const handleSaveAudioCategory = async (audioCategory: string | null) => {
-    const result = await updateRecordingAudioCategory(recording.id, audioCategory || null);
-    if (result.success) {
-      setLocalAudioCategory(audioCategory || "");
+      setLocalAudioCategoryId(audioCategoryId);
     }
   };
 
@@ -256,59 +239,24 @@ export default function RecordingCard({ recording, children, categories = [] }: 
           </p>
         </div>
 
-        {/* カテゴリ選択 */}
+        {/* 音声カテゴリ選択 */}
         <div className="mb-3 flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-[#9E9A95]">カテゴリ:</span>
-          <div className="flex flex-wrap gap-1.5">
-            <button
-              type="button"
-              onClick={() => handleSaveCategory(null)}
-              className={`px-3 py-1 rounded-lg text-sm font-medium transition-all duration-200 ${
-                !localCategoryId
-                  ? "bg-[#C87A55] text-white shadow-sm shadow-stone-200/50"
-                  : "bg-white border border-[#EBE8E3] text-[#36332E] hover:bg-[#FCFAF8] hover:shadow-sm hover:shadow-stone-200/50 hover:-translate-y-px"
-              }`}
-            >
-              なし
-            </button>
-            {categories.map((cat) => (
-              <button
-                key={cat.id}
-                type="button"
-                onClick={() => handleSaveCategory(cat.id)}
-                className={`px-3 py-1 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-1.5 ${
-                  localCategoryId === cat.id
-                    ? "bg-[#C87A55] text-white shadow-sm shadow-stone-200/50"
-                    : "bg-white border border-[#EBE8E3] text-[#36332E] hover:bg-[#FCFAF8] hover:shadow-sm hover:shadow-stone-200/50 hover:-translate-y-px"
-                }`}
-              >
-                <span
-                  className="w-2 h-2 rounded-full"
-                  style={{ backgroundColor: cat.color }}
-                />
-                {cat.name}
-              </button>
-            ))}
-          </div>
-          {categories.length === 0 && (
-            <span className="text-xs text-[#9E9A95]">カテゴリ管理から追加してください</span>
-          )}
-        </div>
-
-        {/* 音声種類（audio_category）※ワークスペースカテゴリとは別 */}
-        <div className="mb-3 flex flex-wrap items-center gap-2">
-          <span className="text-xs font-medium text-[#9E9A95]">音声種類:</span>
+          <span className="text-xs font-medium text-[#9E9A95]">音声カテゴリ:</span>
           <select
-            value={localAudioCategory}
+            value={localAudioCategoryId || ""}
             onChange={(e) => handleSaveAudioCategory(e.target.value || null)}
             className="px-3 py-1.5 rounded-lg text-sm font-medium border border-[#EBE8E3] bg-white text-[#36332E] hover:bg-[#FCFAF8] focus:ring-2 focus:ring-stone-300 outline-none transition"
           >
-            {AUDIO_CATEGORY_OPTIONS.map((opt) => (
-              <option key={opt.value || "_empty"} value={opt.value}>
-                {opt.label}
+            <option value="">未設定</option>
+            {audioCategories.map((cat) => (
+              <option key={cat.id} value={cat.id}>
+                {cat.name}
               </option>
             ))}
           </select>
+          {audioCategories.length === 0 && (
+            <span className="text-xs text-[#9E9A95]">音声カテゴリ管理から追加してください</span>
+          )}
         </div>
 
         {recording.description && (

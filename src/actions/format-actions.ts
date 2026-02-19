@@ -250,6 +250,25 @@ export async function mergeFeedbackIntoTranscript(
       return { success: true, json: originalFormattedJson };
     }
 
+    // 親の transcript が生テキスト（JSONでない）の場合、指導のみを feedback として返す
+    let parsedOriginal: unknown;
+    try {
+      parsedOriginal = JSON.parse(originalFormattedJson);
+    } catch {
+      const fallback = [
+        { type: "paragraph" as const, text: originalFormattedJson.slice(0, 2000), startTime: 0, endTime: 0 },
+        { type: "feedback" as const, text: feedbackRawText },
+      ];
+      return { success: true, json: JSON.stringify(fallback) };
+    }
+    if (!Array.isArray(parsedOriginal)) {
+      const fallback = [
+        { type: "paragraph" as const, text: String(originalFormattedJson).slice(0, 2000), startTime: 0, endTime: 0 },
+        { type: "feedback" as const, text: feedbackRawText },
+      ];
+      return { success: true, json: JSON.stringify(fallback) };
+    }
+
     const apiKey = process.env.GOOGLE_AI_API_KEY;
     if (!apiKey) {
       return { success: false, error: "GOOGLE_AI_API_KEYが設定されていません", json: originalFormattedJson };

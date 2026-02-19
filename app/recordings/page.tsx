@@ -1,25 +1,24 @@
 import { searchRecordings, getAllRecordings } from "@/src/actions/recording-actions";
-import { getAllCategories } from "@/src/actions/category-actions";
+import { getAllAudioCategories } from "@/src/actions/audio-category-actions";
 import Link from "next/link";
 import RecordingCard from "@/src/components/recording/RecordingCard";
 import RecordingsSearchBar from "@/src/components/recording/RecordingsSearchBar";
-import CategoryManager from "@/src/components/recording/CategoryManager";
+import AudioCategoryManager from "@/src/components/recording/AudioCategoryManager";
 import { Suspense } from "react";
 
 export default async function RecordingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; cat?: string; acat?: string }>;
+  searchParams: Promise<{ q?: string; acat?: string }>;
 }) {
   const params = await searchParams;
   const searchQuery = (params.q ?? "").trim();
-  const categoryId = (params.cat ?? "").trim();
-  const audioCategory = (params.acat ?? "").trim();
+  const audioCategoryId = (params.acat ?? "").trim();
 
-  const [parentRecordings, allRecordings, categories] = await Promise.all([
-    searchRecordings(searchQuery || undefined, categoryId || undefined, audioCategory || undefined),
+  const [parentRecordings, allRecordings, audioCategories] = await Promise.all([
+    searchRecordings(searchQuery || undefined, undefined, audioCategoryId || undefined),
     getAllRecordings(),
-    getAllCategories(),
+    getAllAudioCategories(),
   ]);
 
   const filteredParentIds = new Set(parentRecordings.map((r) => r.id));
@@ -70,12 +69,11 @@ export default async function RecordingsPage({
             >
               <div className="space-y-4">
                 <RecordingsSearchBar
-                  categories={categories}
+                  audioCategories={audioCategories}
                   initialQuery={searchQuery}
-                  initialCategoryId={categoryId}
-                  initialAudioCategory={audioCategory}
+                  initialAudioCategoryId={audioCategoryId}
                 />
-                <CategoryManager categories={categories} />
+                <AudioCategoryManager categories={audioCategories} />
               </div>
             </Suspense>
           )}
@@ -112,7 +110,7 @@ export default async function RecordingsPage({
                   key={recording.id}
                   recording={recording}
                   children={children}
-                  categories={categories}
+                  audioCategories={audioCategories}
                 />
               );
             })}

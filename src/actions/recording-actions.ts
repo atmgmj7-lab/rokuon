@@ -12,17 +12,17 @@ export async function uploadFeedback(_formData: FormData, _parentRecordingId: st
   return { success: false, error: "この機能は廃止されました。ページを再読み込みしてください。" };
 }
 
-// 録音を検索（キーワード・ワークスペースカテゴリ・音声種類でサーバーサイドフィルタ）
+// 録音を検索（キーワード・音声カテゴリでサーバーサイドフィルタ）※ワークスペースカテゴリは使用しない
 export async function searchRecordings(
   query?: string,
-  categoryId?: string,
-  audioCategory?: string
+  _categoryId?: string,
+  audioCategoryId?: string
 ) {
   try {
     let sql = `
-      SELECT DISTINCT r.*, c.name as category_name
+      SELECT DISTINCT r.*, ac.name as audio_category_name
       FROM recordings r
-      LEFT JOIN categories c ON r.category_id = c.id
+      LEFT JOIN audio_categories ac ON r.audio_category_id = ac.id
       LEFT JOIN transcripts t ON t.recording_id = r.id
       WHERE r.parent_id IS NULL
     `;
@@ -33,13 +33,9 @@ export async function searchRecordings(
       const q = `%${query.trim()}%`;
       args.push(q, q, q, q);
     }
-    if (categoryId?.trim()) {
-      sql += ` AND r.category_id = ?`;
-      args.push(categoryId.trim());
-    }
-    if (audioCategory?.trim()) {
-      sql += ` AND r.audio_category = ?`;
-      args.push(audioCategory.trim());
+    if (audioCategoryId?.trim()) {
+      sql += ` AND r.audio_category_id = ?`;
+      args.push(audioCategoryId.trim());
     }
     sql += ` ORDER BY r.created_at DESC`;
 
@@ -54,11 +50,10 @@ export async function searchRecordings(
       file_size: row.file_size as number,
       recording_type: row.recording_type as string,
       parent_id: row.parent_id as string | null,
-      category_id: row.category_id as string | null,
       custom_id: (row as { custom_id?: string }).custom_id as string | undefined,
       memo: (row as { memo?: string }).memo as string | undefined,
-      category: ((row as { category_name?: string }).category_name ?? row.category) as string | undefined,
-      audio_category: (row as { audio_category?: string }).audio_category as string | undefined,
+      audio_category_id: (row as { audio_category_id?: string }).audio_category_id as string | undefined,
+      audio_category: (row as { audio_category_name?: string }).audio_category_name as string | undefined,
       created_at: row.created_at as number,
       updated_at: row.updated_at as number,
     }));
@@ -72,7 +67,9 @@ export async function searchRecordings(
 export async function getAllRecordings() {
   try {
     const result = await db.execute(
-      "SELECT * FROM recordings ORDER BY created_at DESC"
+      `SELECT r.*, ac.name as audio_category_name FROM recordings r
+       LEFT JOIN audio_categories ac ON r.audio_category_id = ac.id
+       ORDER BY r.created_at DESC`
     );
 
     return result.rows.map((row) => ({
@@ -84,11 +81,10 @@ export async function getAllRecordings() {
       file_size: row.file_size as number,
       recording_type: row.recording_type as string,
       parent_id: row.parent_id as string | null,
-      category_id: row.category_id as string | null,
       custom_id: (row as { custom_id?: string }).custom_id as string | undefined,
       memo: (row as { memo?: string }).memo as string | undefined,
-      category: (row as { category?: string }).category as string | undefined,
-      audio_category: (row as { audio_category?: string }).audio_category as string | undefined,
+      audio_category_id: (row as { audio_category_id?: string }).audio_category_id as string | undefined,
+      audio_category: (row as { audio_category_name?: string }).audio_category_name as string | undefined,
       created_at: row.created_at as number,
       updated_at: row.updated_at as number,
     }));
@@ -102,7 +98,9 @@ export async function getAllRecordings() {
 export async function getRecordingById(recordingId: string) {
   try {
     const result = await db.execute({
-      sql: "SELECT * FROM recordings WHERE id = ?",
+      sql: `SELECT r.*, ac.name as audio_category_name FROM recordings r
+            LEFT JOIN audio_categories ac ON r.audio_category_id = ac.id
+            WHERE r.id = ?`,
       args: [recordingId],
     });
 
@@ -120,11 +118,10 @@ export async function getRecordingById(recordingId: string) {
       file_size: row.file_size as number,
       recording_type: row.recording_type as string,
       parent_id: row.parent_id as string | null,
-      category_id: row.category_id as string | null,
       custom_id: (row as { custom_id?: string }).custom_id as string | undefined,
       memo: (row as { memo?: string }).memo as string | undefined,
-      category: (row as { category?: string }).category as string | undefined,
-      audio_category: (row as { audio_category?: string }).audio_category as string | undefined,
+      audio_category_id: (row as { audio_category_id?: string }).audio_category_id as string | undefined,
+      audio_category: (row as { audio_category_name?: string }).audio_category_name as string | undefined,
       created_at: row.created_at as number,
       updated_at: row.updated_at as number,
     };
@@ -134,19 +131,19 @@ export async function getRecordingById(recordingId: string) {
   }
 }
 
-// 録音の音声種類（audio_category）を更新
+// 録音の音声カテゴリ（audio_category_id）を更新
 export async function updateRecordingAudioCategory(
   recordingId: string,
-  audioCategory: string | null
+  audioCategoryId: string | null
 ) {
   try {
     await db.execute({
-      sql: "UPDATE recordings SET audio_category = ?, updated_at = ? WHERE id = ?",
-      args: [audioCategory?.trim() || null, Date.now(), recordingId],
+      sql: "UPDATE recordings SET audio_category_id = ?, updated_at = ? WHERE id = ?",
+      args: [audioCategoryId?.trim() || null, Date.now(), recordingId],
     });
     return { success: true };
   } catch (error) {
-    console.error("❌ 音声種類更新エラー:", error);
+    console.error("❌ 音声カテゴリ更新エラー:", error);
     return { success: false, error: error instanceof Error ? error.message : "不明なエラー" };
   }
 }
