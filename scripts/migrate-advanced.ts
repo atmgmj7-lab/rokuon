@@ -23,6 +23,7 @@ async function migrate() {
   const alterStatements = [
     "ALTER TABLE recordings ADD COLUMN r2_key TEXT",
     "ALTER TABLE recordings ADD COLUMN audio_category TEXT",
+    "ALTER TABLE recordings ADD COLUMN is_training_data INTEGER DEFAULT 0",
     "ALTER TABLE transcripts ADD COLUMN original_content TEXT",
     "ALTER TABLE transcripts ADD COLUMN corrected_content TEXT",
     "ALTER TABLE transcripts ADD COLUMN learning_pending INTEGER DEFAULT 0",

@@ -2,13 +2,13 @@
 
 import { useState, useEffect } from "react";
 import TranscriptRichDisplay from "./TranscriptRichDisplay";
-import FeedbackUploader from "./FeedbackUploader";
 import { analyzeFeedbackPair } from "@/src/actions/analysis-actions";
 import {
   getTranscriptByRecordingId,
   updateRecordingCustomId,
   deleteRecording,
   updateRecordingAudioCategory,
+  setRecordingTrainingData,
 } from "@/src/actions/recording-actions";
 import type { AudioCategory } from "@/src/actions/audio-category-actions";
 
@@ -25,6 +25,7 @@ interface Recording {
   memo?: string;
   audio_category_id?: string;
   audio_category?: string;
+  is_training_data?: boolean;
   created_at: number;
   updated_at: number;
 }
@@ -35,10 +36,23 @@ interface RecordingCardProps {
   audioCategories?: AudioCategory[];
 }
 
-// フィードバック音声用の文字起こしボタン
-function ChildTranscriptButton({ recordingId, audioUrl }: { recordingId: string; audioUrl?: string }) {
+// フィードバック音声用の文字起こし（編集・corrected_content 保存対応）
+function ChildTranscriptButton({
+  recordingId,
+  audioUrl,
+  isTrainingData,
+}: {
+  recordingId: string;
+  audioUrl?: string;
+  isTrainingData?: boolean;
+}) {
   const [show, setShow] = useState(false);
   const [transcript, setTranscript] = useState<{ id: string; content: string; learning_pending?: boolean } | null | undefined>(undefined);
+  const [localIsTraining, setLocalIsTraining] = useState(!!isTrainingData);
+
+  useEffect(() => {
+    setLocalIsTraining(!!isTrainingData);
+  }, [isTrainingData]);
 
   const handleToggle = async () => {
     if (!show && transcript === undefined) {
@@ -48,14 +62,37 @@ function ChildTranscriptButton({ recordingId, audioUrl }: { recordingId: string;
     setShow(!show);
   };
 
+  const handleTrainingToggle = async () => {
+    const result = await setRecordingTrainingData(recordingId, !localIsTraining);
+    if (result.success) {
+      setLocalIsTraining(!localIsTraining);
+    } else {
+      alert(`設定に失敗しました: ${result.error}`);
+    }
+  };
+
   return (
     <div className="mb-2">
-      <button
-        onClick={handleToggle}
-        className="text-sm text-[#36332E] hover:text-[#C87A55] font-medium"
-      >
-        {show ? "文字起こしを閉じる" : "文字起こしを表示"}
-      </button>
+      <div className="flex items-center gap-3 flex-wrap">
+        <button
+          onClick={handleToggle}
+          className="text-sm text-[#36332E] hover:text-[#C87A55] font-medium"
+        >
+          {show ? "文字起こしを閉じる" : "文字起こしを表示・編集"}
+        </button>
+        <button
+          type="button"
+          onClick={handleTrainingToggle}
+          className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+            localIsTraining
+              ? "bg-[#4A463F] text-white"
+              : "bg-white border border-[#EBE8E3] text-[#36332E] hover:bg-[#FCFAF8]"
+          }`}
+          title="メイン音声＋指導音声のペアをAI学習用データとして登録"
+        >
+          {localIsTraining ? "✓ 学習データ登録済" : "このペアを学習データに登録"}
+        </button>
+      </div>
       {show && transcript !== undefined && (
         <div className="mt-2 p-3 bg-white rounded border border-[#EBE8E3] shadow-sm shadow-stone-200/50">
           {transcript === null ? (
@@ -332,18 +369,7 @@ export default function RecordingCard({ recording, children, audioCategories = [
         )}
       </div>
 
-      {/* 指導音声アップロード（課題音声の場合のみ表示） */}
-      {recording.recording_type === "case" && (
-        <div className="mb-6">
-          <FeedbackUploader
-            parentRecordingId={recording.id}
-            parentTitle={recording.title}
-            onSuccess={() => window.location.reload()}
-          />
-        </div>
-      )}
-
-      {/* 子録音（指導音声）の表示 */}
+      {/* 子録音（指導音声）の表示 ※その場で録音はメイン音声の文字起こし画面からインライン追加 */}
       {children.length > 0 && (
         <div className="ml-8 space-y-4 border-l-4 border-[#C87A55] pl-6">
           <h3 className="text-lg font-semibold text-[#36332E] mb-3">
@@ -410,8 +436,12 @@ export default function RecordingCard({ recording, children, audioCategories = [
                 お使いのブラウザは audio 要素をサポートしていません。
               </audio>
 
-              {/* フィードバックの文字起こし */}
-              <ChildTranscriptButton recordingId={child.id} audioUrl={child.audio_url} />
+              {/* フィードバックの文字起こし（編集・corrected_content 保存） */}
+              <ChildTranscriptButton
+                recordingId={child.id}
+                audioUrl={child.audio_url}
+                isTrainingData={!!child.is_training_data}
+              />
 
               <div className="flex items-center justify-between mt-2">
                 <div className="flex items-center gap-3 text-xs text-[#9E9A95]">

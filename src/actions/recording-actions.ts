@@ -54,6 +54,7 @@ export async function searchRecordings(
       memo: (row as { memo?: string }).memo as string | undefined,
       audio_category_id: (row as { audio_category_id?: string }).audio_category_id as string | undefined,
       audio_category: (row as { audio_category_name?: string }).audio_category_name as string | undefined,
+      is_training_data: !!((row as { is_training_data?: number }).is_training_data),
       created_at: row.created_at as number,
       updated_at: row.updated_at as number,
     }));
@@ -85,6 +86,7 @@ export async function getAllRecordings() {
       memo: (row as { memo?: string }).memo as string | undefined,
       audio_category_id: (row as { audio_category_id?: string }).audio_category_id as string | undefined,
       audio_category: (row as { audio_category_name?: string }).audio_category_name as string | undefined,
+      is_training_data: !!((row as { is_training_data?: number }).is_training_data),
       created_at: row.created_at as number,
       updated_at: row.updated_at as number,
     }));
@@ -122,6 +124,7 @@ export async function getRecordingById(recordingId: string) {
       memo: (row as { memo?: string }).memo as string | undefined,
       audio_category_id: (row as { audio_category_id?: string }).audio_category_id as string | undefined,
       audio_category: (row as { audio_category_name?: string }).audio_category_name as string | undefined,
+      is_training_data: !!((row as { is_training_data?: number }).is_training_data),
       created_at: row.created_at as number,
       updated_at: row.updated_at as number,
     };
@@ -144,6 +147,20 @@ export async function updateRecordingAudioCategory(
     return { success: true };
   } catch (error) {
     console.error("❌ 音声カテゴリ更新エラー:", error);
+    return { success: false, error: error instanceof Error ? error.message : "不明なエラー" };
+  }
+}
+
+// 録音を学習データとして登録/解除（指導音声ペア用）
+export async function setRecordingTrainingData(recordingId: string, isTraining: boolean) {
+  try {
+    await db.execute({
+      sql: "UPDATE recordings SET is_training_data = ?, updated_at = ? WHERE id = ?",
+      args: [isTraining ? 1 : 0, Date.now(), recordingId],
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("❌ 学習データ設定エラー:", error);
     return { success: false, error: error instanceof Error ? error.message : "不明なエラー" };
   }
 }
