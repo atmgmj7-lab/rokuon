@@ -69,9 +69,16 @@ export async function POST(request: NextRequest) {
   process.env.TMP = "/tmp";
 
   try {
-    const fileName = request.headers.get("x-file-name") || "audio.webm";
-    const title = request.headers.get("x-title") || "";
-    const description = request.headers.get("x-description") || "";
+    const safeDecode = (s: string) => {
+      try {
+        return decodeURIComponent(s);
+      } catch {
+        return s;
+      }
+    };
+    const fileName = safeDecode(request.headers.get("x-file-name") || "audio.webm");
+    const title = safeDecode(request.headers.get("x-title") || "");
+    const description = safeDecode(request.headers.get("x-description") || "");
 
     // 生バイナリを取得（FormData パースを完全に回避）
     const bytes = await request.arrayBuffer();

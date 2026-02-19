@@ -83,13 +83,14 @@ export default function AudioUploader() {
       const description = (formData.get("description") as string) || "";
 
       // FormData を経由せず、生バイナリで API Route に送信（Vercel ENOENT 回避）
+      // 日本語ファイル名対応: headers は ISO-8859-1 のみ許可のため encodeURIComponent でエンコード
       const res = await fetch("/api/upload-and-transcribe", {
         method: "POST",
         body: selectedFile,
         headers: {
-          "x-file-name": selectedFile.name,
-          "x-title": title,
-          "x-description": description,
+          "x-file-name": encodeURIComponent(selectedFile.name),
+          "x-title": encodeURIComponent(title),
+          "x-description": encodeURIComponent(description),
         },
       });
 

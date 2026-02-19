@@ -68,10 +68,17 @@ export async function POST(request: NextRequest) {
   process.env.TMP = "/tmp";
 
   try {
-    const fileName = request.headers.get("x-file-name") || "recording.webm";
-    const title = request.headers.get("x-title") || "";
-    const description = request.headers.get("x-description") || "";
-    const parentRecordingId = request.headers.get("x-parent-recording-id");
+    const safeDecode = (s: string) => {
+      try {
+        return decodeURIComponent(s);
+      } catch {
+        return s;
+      }
+    };
+    const fileName = safeDecode(request.headers.get("x-file-name") || "recording.webm");
+    const title = safeDecode(request.headers.get("x-title") || "");
+    const description = safeDecode(request.headers.get("x-description") || "");
+    const parentRecordingId = safeDecode(request.headers.get("x-parent-recording-id") || "");
 
     if (!parentRecordingId) {
       return NextResponse.json(
