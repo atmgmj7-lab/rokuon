@@ -30,7 +30,7 @@ export default function CallPage() {
 
     // ワークスペースから基本トークと状況別フォルダを取得
     const hierarchyResult = await getWorkspaceHierarchy();
-    if (hierarchyResult.success && hierarchyResult.hierarchy.length > 0) {
+    if (hierarchyResult.success && hierarchyResult.hierarchy && hierarchyResult.hierarchy.length > 0) {
       const firstCategory = hierarchyResult.hierarchy[0];
 
       // base_talkフォルダの最初のものを基本トークとして使用
