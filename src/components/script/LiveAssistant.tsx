@@ -70,7 +70,7 @@ export default function LiveAssistant({
     });
 
     if (bestMatch) {
-      setMatchedStartNode(bestMatch.id);
+      setMatchedStartNode((bestMatch as ScriptNode).id);
     } else {
       setMatchedStartNode(flowData.startNodeId);
     }
