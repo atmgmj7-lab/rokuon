@@ -103,6 +103,7 @@ export async function POST(request: NextRequest) {
     const objectName = `feedback_${timestamp}${extension}`;
     const contentType = getMimeType(extension);
 
+    const r2Key = `uploads/${objectName}`;
     const audioUrl = await uploadToR2(buffer, objectName, contentType);
 
     const dicts = await getDictionaries();
@@ -150,13 +151,14 @@ export async function POST(request: NextRequest) {
     const now = Date.now();
 
     await db.execute({
-      sql: `INSERT INTO recordings (id, title, description, audio_url, duration, file_size, recording_type, parent_id, category_id, created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      sql: `INSERT INTO recordings (id, title, description, audio_url, r2_key, duration, file_size, recording_type, parent_id, category_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         recordingId,
         title || `指導音声_${fileName}`,
         description || "",
         audioUrl,
+        r2Key,
         Math.floor(duration),
         fileSize,
         "feedback",
@@ -168,9 +170,9 @@ export async function POST(request: NextRequest) {
     });
 
     await db.execute({
-      sql: `INSERT INTO transcripts (id, recording_id, content, language, created_at)
-            VALUES (?, ?, ?, ?, ?)`,
-      args: [transcriptId, recordingId, contentToSave, "ja", now],
+      sql: `INSERT INTO transcripts (id, recording_id, content, original_content, language, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)`,
+      args: [transcriptId, recordingId, contentToSave, contentToSave, "ja", now],
     });
 
     // revalidatePath("/");

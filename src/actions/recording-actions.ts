@@ -12,6 +12,53 @@ export async function uploadFeedback(_formData: FormData, _parentRecordingId: st
   return { success: false, error: "この機能は廃止されました。ページを再読み込みしてください。" };
 }
 
+// 録音を検索（キーワード・カテゴリでサーバーサイドフィルタ）
+export async function searchRecordings(query?: string, categoryId?: string) {
+  try {
+    let sql = `
+      SELECT DISTINCT r.*, c.name as category_name
+      FROM recordings r
+      LEFT JOIN categories c ON r.category_id = c.id
+      LEFT JOIN transcripts t ON t.recording_id = r.id
+      WHERE r.parent_id IS NULL
+    `;
+    const args: (string | number)[] = [];
+
+    if (query?.trim()) {
+      sql += ` AND (r.title LIKE ? OR r.memo LIKE ? OR r.description LIKE ? OR (t.content IS NOT NULL AND t.content LIKE ?))`;
+      const q = `%${query.trim()}%`;
+      args.push(q, q, q, q);
+    }
+    if (categoryId?.trim()) {
+      sql += ` AND r.category_id = ?`;
+      args.push(categoryId.trim());
+    }
+    sql += ` ORDER BY r.created_at DESC`;
+
+    const result = await db.execute({ sql, args });
+
+    return result.rows.map((row) => ({
+      id: row.id as string,
+      title: row.title as string,
+      description: row.description as string,
+      audio_url: row.audio_url as string,
+      duration: row.duration as number,
+      file_size: row.file_size as number,
+      recording_type: row.recording_type as string,
+      parent_id: row.parent_id as string | null,
+      category_id: row.category_id as string | null,
+      custom_id: (row as { custom_id?: string }).custom_id as string | undefined,
+      memo: (row as { memo?: string }).memo as string | undefined,
+      category: ((row as { category_name?: string }).category_name ?? row.category) as string | undefined,
+      created_at: row.created_at as number,
+      updated_at: row.updated_at as number,
+    }));
+  } catch (error) {
+    console.error("❌ 録音検索エラー:", error);
+    return [];
+  }
+}
+
 // すべての録音を取得（親子関係も含む）
 export async function getAllRecordings() {
   try {
@@ -108,7 +155,7 @@ export async function updateRecordingCategory(recordingId: string, category: str
   }
 }
 
-// 録音の文字起こしを取得
+// 録音の文字起こしを取得（corrected_content があれば表示用に使用）
 export async function getTranscriptByRecordingId(recordingId: string) {
   try {
     const result = await db.execute({
@@ -121,10 +168,15 @@ export async function getTranscriptByRecordingId(recordingId: string) {
     }
 
     const row = result.rows[0];
+    const corrected = (row as { corrected_content?: string }).corrected_content as string | undefined;
+    const content = row.content as string;
     return {
       id: row.id as string,
       recording_id: row.recording_id as string,
-      content: row.content as string,
+      content: corrected ?? content,
+      original_content: (row as { original_content?: string }).original_content as string | undefined,
+      corrected_content: corrected,
+      learning_pending: (row as { learning_pending?: number }).learning_pending as number | undefined,
       language: row.language as string | null,
       created_at: row.created_at as number,
     };
@@ -187,10 +239,37 @@ export async function updateTranscriptContent(transcriptId: string, newContent: 
       sql: "UPDATE transcripts SET content = ? WHERE id = ?",
       args: [newContent, transcriptId],
     });
-    // revalidatePath("/recordings");
     return { success: true };
   } catch (error) {
     console.error("❌ 文字起こし更新エラー:", error);
+    return { success: false, error: error instanceof Error ? error.message : "不明なエラー" };
+  }
+}
+
+// 修正テキストを corrected_content に保存（学習用）
+export async function saveCorrectedTranscript(transcriptId: string, correctedContent: string) {
+  try {
+    await db.execute({
+      sql: "UPDATE transcripts SET content = ?, corrected_content = ? WHERE id = ?",
+      args: [correctedContent, correctedContent, transcriptId],
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("❌ 修正テキスト保存エラー:", error);
+    return { success: false, error: error instanceof Error ? error.message : "不明なエラー" };
+  }
+}
+
+// 学習待ちステータスに設定
+export async function setTranscriptLearningPending(transcriptId: string) {
+  try {
+    await db.execute({
+      sql: "UPDATE transcripts SET learning_pending = 1 WHERE id = ?",
+      args: [transcriptId],
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("❌ 学習フラグ設定エラー:", error);
     return { success: false, error: error instanceof Error ? error.message : "不明なエラー" };
   }
 }

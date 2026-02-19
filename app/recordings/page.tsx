@@ -1,7 +1,9 @@
-import { getAllRecordings } from "@/src/actions/recording-actions";
+import { searchRecordings, getAllRecordings } from "@/src/actions/recording-actions";
+import { getAllCategories } from "@/src/actions/category-actions";
 import Link from "next/link";
 import RecordingCard from "@/src/components/recording/RecordingCard";
 import RecordingsSearchBar from "@/src/components/recording/RecordingsSearchBar";
+import CategoryManager from "@/src/components/recording/CategoryManager";
 import { Suspense } from "react";
 
 export default async function RecordingsPage({
@@ -11,34 +13,17 @@ export default async function RecordingsPage({
 }) {
   const params = await searchParams;
   const searchQuery = (params.q ?? "").trim();
-  const categoryFilter = (params.cat ?? "").trim();
+  const categoryId = (params.cat ?? "").trim();
 
-  const recordings = await getAllRecordings();
+  const [parentRecordings, allRecordings, categories] = await Promise.all([
+    searchRecordings(searchQuery || undefined, categoryId || undefined),
+    getAllRecordings(),
+    getAllCategories(),
+  ]);
 
-  // 親録音（課題音声とお手本）のみを抽出
-  let parentRecordings = recordings.filter((r) => !r.parent_id);
-
-  // 検索フィルター（title・memoの部分一致）
-  if (searchQuery) {
-    const q = searchQuery.toLowerCase();
-    parentRecordings = parentRecordings.filter(
-      (r) =>
-        (r.title ?? "").toLowerCase().includes(q) ||
-        (r.memo ?? "").toLowerCase().includes(q)
-    );
-  }
-
-  // カテゴリフィルター
-  if (categoryFilter) {
-    parentRecordings = parentRecordings.filter(
-      (r) => (r.category ?? "").trim() === categoryFilter
-    );
-  }
-
-  // 子録音（指導音声）をマッピング（フィルター後の親に紐づくもの）
   const filteredParentIds = new Set(parentRecordings.map((r) => r.id));
-  const childrenMap = new Map<string, typeof recordings>();
-  recordings
+  const childrenMap = new Map<string, typeof allRecordings>();
+  allRecordings
     .filter((r) => r.parent_id && filteredParentIds.has(r.parent_id))
     .forEach((child) => {
       if (!childrenMap.has(child.parent_id!)) {
@@ -47,17 +32,7 @@ export default async function RecordingsPage({
       childrenMap.get(child.parent_id!)!.push(child);
     });
 
-  // 存在するカテゴリ一覧（親録音から抽出、重複排除）
-  const allParentRecordings = recordings.filter((r) => !r.parent_id);
-  const categories = [
-    ...new Set(
-      allParentRecordings
-        .map((r) => (r.category ?? "").trim())
-        .filter((c) => c.length > 0)
-    ),
-  ].sort();
-
-  const hasRecordings = recordings.filter((r) => !r.parent_id).length > 0;
+  const hasRecordings = allRecordings.filter((r) => !r.parent_id).length > 0;
   const hasFilteredResults = parentRecordings.length > 0;
 
   return (
@@ -92,11 +67,14 @@ export default async function RecordingsPage({
                 <div className="h-20 bg-white/50 rounded-lg border border-stone-200 animate-pulse" />
               }
             >
-              <RecordingsSearchBar
-                categories={categories}
-                initialQuery={searchQuery}
-                initialCategory={categoryFilter}
-              />
+              <div className="space-y-4">
+                <RecordingsSearchBar
+                  categories={categories}
+                  initialQuery={searchQuery}
+                  initialCategoryId={categoryId}
+                />
+                <CategoryManager categories={categories} />
+              </div>
             </Suspense>
           )}
         </header>
@@ -132,6 +110,7 @@ export default async function RecordingsPage({
                   key={recording.id}
                   recording={recording}
                   children={children}
+                  categories={categories}
                 />
               );
             })}

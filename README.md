@@ -122,7 +122,8 @@ npm install
 
 ### 3. データベースのマイグレーション
 ```bash
-npx tsx scripts/migrate-v10.ts
+npm run migrate
+npm run migrate:advanced   # 録音高度化機能（カテゴリ・学習用フィールド）
 ```
 
 ### 4. 開発サーバーの起動

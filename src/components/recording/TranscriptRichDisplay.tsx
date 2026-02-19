@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { updateTranscriptContent, updateRecordingMemo } from "@/src/actions/recording-actions";
+import { updateTranscriptContent, updateRecordingMemo, saveCorrectedTranscript, setTranscriptLearningPending } from "@/src/actions/recording-actions";
 import { deleteInlineVoiceFeedback } from "@/src/actions/feedback-actions";
 import { saveTranscriptCorrections } from "@/src/actions/correction-actions";
 
@@ -88,8 +88,10 @@ interface TranscriptRichDisplayProps {
   recordingId?: string;
   audioUrl?: string;
   memo?: string;
+  learningPending?: boolean;
   onSaved?: (newContent: string) => void;
   onMemoSaved?: (memo: string) => void;
+  onLearningSet?: () => void;
 }
 
 export default function TranscriptRichDisplay({
@@ -98,8 +100,10 @@ export default function TranscriptRichDisplay({
   recordingId,
   audioUrl,
   memo = "",
+  learningPending = false,
   onSaved,
   onMemoSaved,
+  onLearningSet,
 }: TranscriptRichDisplayProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -115,6 +119,7 @@ export default function TranscriptRichDisplay({
   const [isEditing, setIsEditing] = useState(false);
   const [editItems, setEditItems] = useState<TranscriptItem[]>([]);
   const [editRawText, setEditRawText] = useState("");
+  const [isLearningPending, setIsLearningPending] = useState(learningPending);
 
   const items = parseTranscriptItems(content);
   const hasStructuredItems = items.length > 0;
@@ -226,13 +231,25 @@ export default function TranscriptRichDisplay({
       }
     }
 
-    const result = await updateTranscriptContent(transcriptId, jsonStr);
+    const result = await saveCorrectedTranscript(transcriptId, jsonStr);
     if (result.success) {
       onSaved?.(jsonStr);
       setIsEditing(false);
       alert("保存しました");
     } else {
       alert(`保存に失敗しました: ${result.error}`);
+    }
+  };
+
+  const handleSetLearning = async () => {
+    if (!confirm("この内容を学習に使いますか？ファインチューニング用に学習待ちステータスになります。")) return;
+    const result = await setTranscriptLearningPending(transcriptId);
+    if (result.success) {
+      setIsLearningPending(true);
+      onLearningSet?.();
+      alert("学習待ちに設定しました");
+    } else {
+      alert(`設定に失敗しました: ${result.error}`);
     }
   };
 
@@ -393,7 +410,7 @@ export default function TranscriptRichDisplay({
                   { original_text: content, corrected_text: editRawText },
                 ]);
               }
-              const result = await updateTranscriptContent(
+              const result = await saveCorrectedTranscript(
                 transcriptId,
                 editRawText
               );
@@ -430,12 +447,25 @@ export default function TranscriptRichDisplay({
   ) {
     return (
       <div>
-        <button
-          onClick={handleStartEdit}
-          className="mb-2 px-3 py-1.5 bg-white border border-[#EBE8E3] text-[#36332E] hover:bg-[#FCFAF8] hover:shadow-sm hover:shadow-stone-200/50 hover:-translate-y-px rounded-xl text-sm transition-all duration-200"
-        >
-          編集
-        </button>
+        <div className="mb-2 flex flex-wrap gap-2">
+          <button
+            onClick={handleStartEdit}
+            className="px-3 py-1.5 bg-white border border-[#EBE8E3] text-[#36332E] hover:bg-[#FCFAF8] hover:shadow-sm hover:shadow-stone-200/50 hover:-translate-y-px rounded-xl text-sm transition-all duration-200"
+          >
+            編集
+          </button>
+          <button
+            onClick={handleSetLearning}
+            disabled={isLearningPending}
+            className={`px-3 py-1.5 rounded-xl text-sm transition-all duration-200 ${
+              isLearningPending
+                ? "bg-stone-100 text-stone-400 cursor-not-allowed"
+                : "bg-[#4A463F] text-white hover:bg-[#3E3A34]"
+            }`}
+          >
+            {isLearningPending ? "学習待ち" : "この内容を学習に使う"}
+          </button>
+        </div>
         <p className="text-[#36332E] whitespace-pre-wrap leading-[2.2] tracking-[0.03em] font-medium">
           {content}
         </p>
@@ -447,16 +477,32 @@ export default function TranscriptRichDisplay({
   return (
     <div className="flex flex-col lg:flex-row gap-8 items-start w-full bg-[#FDFCFB] min-h-full">
       <div className="w-full lg:flex-1 min-w-0">
-        {audioUrl && (
+        {(audioUrl || recordingId) && (
           <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-sm pb-4 mb-4 border-b border-[#EBE8E3] shadow-sm shadow-stone-200/50">
             <audio
               ref={audioRef}
-              src={audioUrl}
+              src={
+                recordingId
+                  ? `/api/recordings/${recordingId}/audio`
+                  : audioUrl
+                    ? `/api/audio/signed?url=${encodeURIComponent(audioUrl)}`
+                    : "/"
+              }
               controls
               onTimeUpdate={(e) => setCurrentTime(e.currentTarget.currentTime)}
               onSeeked={(e) => setCurrentTime(e.currentTarget.currentTime)}
-              onLoadedMetadata={(e) => {
-                e.currentTarget.playbackRate = playbackRate;
+              onLoadedMetadata={(e) => { e.currentTarget.playbackRate = playbackRate; }}
+              onError={(e) => {
+                const el = e.currentTarget;
+                const err = el.error;
+                console.error("[音声再生エラー] TranscriptRichDisplay メイン", {
+                  recordingId,
+                  audio_url: audioUrl,
+                  errorCode: err?.code,
+                  errorMessage: err?.message,
+                  networkState: el.networkState,
+                  readyState: el.readyState,
+                });
               }}
               className="w-full h-10 rounded-md shadow-sm"
             />
@@ -492,6 +538,17 @@ export default function TranscriptRichDisplay({
           >
             {isCopied ? "コピーしました" : "テキストをコピー"}
           </button>
+          <button
+            onClick={handleSetLearning}
+            disabled={isLearningPending}
+            className={`px-3 py-1.5 rounded-xl text-sm transition-all duration-200 ${
+              isLearningPending
+                ? "bg-stone-100 text-stone-400 cursor-not-allowed"
+                : "bg-[#4A463F] text-white hover:bg-[#3E3A34]"
+            }`}
+          >
+            {isLearningPending ? "学習待ち" : "この内容を学習に使う"}
+          </button>
         </div>
         <div>
         {items.map((item, idx) =>
@@ -526,7 +583,23 @@ export default function TranscriptRichDisplay({
                   </p>
                   {item.audioUrl && (
                     <div className="mt-4 p-2 bg-[#FCFAF8] rounded-xl border border-[#EBE8E3] shadow-sm shadow-stone-200/50">
-                      <audio src={item.audioUrl} controls className="w-full h-8" />
+                      <audio
+                        src={`/api/audio/signed?url=${encodeURIComponent(item.audioUrl)}`}
+                        controls
+                        className="w-full h-8"
+                        onError={(e) => {
+                          const el = e.currentTarget;
+                          const err = el.error;
+                          console.error("[音声再生エラー] TranscriptRichDisplay フィードバック", {
+                            audio_url: item.audioUrl,
+                            errorCode: err?.code,
+                            errorMessage: err?.message,
+                            networkState: el.networkState,
+                            readyState: el.readyState,
+                          });
+                        }}
+                        onLoadedMetadata={() => {}}
+                      />
                     </div>
                   )}
                 </div>

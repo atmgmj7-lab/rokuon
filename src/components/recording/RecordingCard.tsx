@@ -6,9 +6,10 @@ import { analyzeFeedbackPair } from "@/src/actions/analysis-actions";
 import {
   getTranscriptByRecordingId,
   updateRecordingCustomId,
-  updateRecordingCategory,
   deleteRecording,
 } from "@/src/actions/recording-actions";
+import { setRecordingCategory } from "@/src/actions/category-actions";
+import type { RecordingCategory } from "@/src/actions/category-actions";
 
 interface Recording {
   id: string;
@@ -30,17 +31,18 @@ interface Recording {
 interface RecordingCardProps {
   recording: Recording;
   children: Recording[];
+  categories?: RecordingCategory[];
 }
 
 // フィードバック音声用の文字起こしボタン
 function ChildTranscriptButton({ recordingId, audioUrl }: { recordingId: string; audioUrl?: string }) {
   const [show, setShow] = useState(false);
-  const [transcript, setTranscript] = useState<{ id: string; content: string } | null | undefined>(undefined);
+  const [transcript, setTranscript] = useState<{ id: string; content: string; learning_pending?: boolean } | null | undefined>(undefined);
 
   const handleToggle = async () => {
     if (!show && transcript === undefined) {
       const t = await getTranscriptByRecordingId(recordingId);
-      setTranscript(t ? { id: t.id, content: t.content } : null);
+      setTranscript(t ? { id: t.id, content: t.content, learning_pending: !!t.learning_pending } : null);
     }
     setShow(!show);
   };
@@ -63,8 +65,12 @@ function ChildTranscriptButton({ recordingId, audioUrl }: { recordingId: string;
               content={transcript.content}
               recordingId={recordingId}
               audioUrl={audioUrl}
+              learningPending={!!transcript.learning_pending}
               onSaved={(newContent) => {
                 setTranscript({ ...transcript, content: newContent });
+              }}
+              onLearningSet={() => {
+                setTranscript({ ...transcript, learning_pending: true });
               }}
             />
           )}
@@ -74,22 +80,23 @@ function ChildTranscriptButton({ recordingId, audioUrl }: { recordingId: string;
   );
 }
 
-const PRESET_CATEGORIES = ["初回商談", "クロージング", "クレーム", "ヒアリング", "アポ獲得", "その他"];
 
-export default function RecordingCard({ recording, children }: RecordingCardProps) {
+export default function RecordingCard({ recording, children, categories = [] }: RecordingCardProps) {
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   const [showTranscript, setShowTranscript] = useState(false);
-  const [transcript, setTranscript] = useState<{ id: string; content: string } | null | undefined>(undefined);
+  const [transcript, setTranscript] = useState<{ id: string; content: string; learning_pending?: boolean } | null | undefined>(undefined);
   const [editingCustomId, setEditingCustomId] = useState(false);
   const [editingCustomIdValue, setEditingCustomIdValue] = useState(recording.custom_id || "");
+  const [localCategoryId, setLocalCategoryId] = useState<string | null>(recording.category_id || null);
   const [localCategory, setLocalCategory] = useState(recording.category || "");
   const [localMemo, setLocalMemo] = useState(recording.memo || "");
 
   useEffect(() => {
+    setLocalCategoryId(recording.category_id || null);
     setLocalCategory(recording.category || "");
     setLocalMemo(recording.memo || "");
-  }, [recording.category, recording.memo]);
+  }, [recording.category_id, recording.category, recording.memo]);
 
   // 型バッジ
   const getTypeBadge = (type: string) => {
@@ -121,7 +128,7 @@ export default function RecordingCard({ recording, children }: RecordingCardProp
   const handleShowTranscript = async () => {
     if (!showTranscript && transcript === undefined) {
       const t = await getTranscriptByRecordingId(recording.id);
-      setTranscript(t ? { id: t.id, content: t.content } : null);
+      setTranscript(t ? { id: t.id, content: t.content, learning_pending: !!t.learning_pending } : null);
     }
     setShowTranscript(!showTranscript);
   };
@@ -135,11 +142,13 @@ export default function RecordingCard({ recording, children }: RecordingCardProp
     }
   };
 
-  // カテゴリを保存
-  const handleSaveCategory = async (category: string) => {
-    const result = await updateRecordingCategory(recording.id, category);
+  // カテゴリを保存（category_id で紐付け）
+  const handleSaveCategory = async (categoryId: string | null) => {
+    const result = await setRecordingCategory(recording.id, categoryId);
     if (result.success) {
-      setLocalCategory(category);
+      setLocalCategoryId(categoryId);
+      const cat = categoryId ? categories.find((c) => c.id === categoryId) : null;
+      setLocalCategory(cat?.name ?? "");
     }
   };
 
@@ -233,42 +242,43 @@ export default function RecordingCard({ recording, children }: RecordingCardProp
           </p>
         </div>
 
-        {/* カテゴリ選択（Claude風フラットバッジ） */}
+        {/* カテゴリ選択 */}
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium text-[#9E9A95]">カテゴリ:</span>
           <div className="flex flex-wrap gap-1.5">
-            {PRESET_CATEGORIES.map((cat) => (
+            <button
+              type="button"
+              onClick={() => handleSaveCategory(null)}
+              className={`px-3 py-1 rounded-lg text-sm font-medium transition-all duration-200 ${
+                !localCategoryId
+                  ? "bg-[#C87A55] text-white shadow-sm shadow-stone-200/50"
+                  : "bg-white border border-[#EBE8E3] text-[#36332E] hover:bg-[#FCFAF8] hover:shadow-sm hover:shadow-stone-200/50 hover:-translate-y-px"
+              }`}
+            >
+              なし
+            </button>
+            {categories.map((cat) => (
               <button
-                key={cat}
+                key={cat.id}
                 type="button"
-                onClick={() => handleSaveCategory(cat)}
-                className={`px-3 py-1 rounded-lg text-sm font-medium transition-all duration-200 ${
-                  localCategory === cat
+                onClick={() => handleSaveCategory(cat.id)}
+                className={`px-3 py-1 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-1.5 ${
+                  localCategoryId === cat.id
                     ? "bg-[#C87A55] text-white shadow-sm shadow-stone-200/50"
                     : "bg-white border border-[#EBE8E3] text-[#36332E] hover:bg-[#FCFAF8] hover:shadow-sm hover:shadow-stone-200/50 hover:-translate-y-px"
                 }`}
               >
-                {cat}
+                <span
+                  className="w-2 h-2 rounded-full"
+                  style={{ backgroundColor: cat.color }}
+                />
+                {cat.name}
               </button>
             ))}
           </div>
-          <input
-            type="text"
-            value={localCategory && !PRESET_CATEGORIES.includes(localCategory) ? localCategory : ""}
-            onChange={(e) => setLocalCategory(e.target.value)}
-            onBlur={() => {
-              const v = localCategory.trim();
-              if (v && !PRESET_CATEGORIES.includes(v)) handleSaveCategory(v);
-            }}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                const v = localCategory.trim();
-                if (v) handleSaveCategory(v);
-              }
-            }}
-            placeholder="カスタム入力"
-            className="w-24 px-2 py-1 text-sm border border-[#EBE8E3] rounded-lg text-[#36332E] bg-white focus:ring-2 focus:ring-[#C87A55]/30 focus:border-[#C87A55]"
-          />
+          {categories.length === 0 && (
+            <span className="text-xs text-[#9E9A95]">カテゴリ管理から追加してください</span>
+          )}
         </div>
 
         {recording.description && (
@@ -276,7 +286,24 @@ export default function RecordingCard({ recording, children }: RecordingCardProp
         )}
 
         <div className="flex items-center gap-4 mb-3">
-          <audio controls src={recording.audio_url} className="flex-1">
+          <audio
+            controls
+            src={`/api/recordings/${recording.id}/audio`}
+            className="flex-1"
+            onError={(e) => {
+              const el = e.currentTarget;
+              const err = el.error;
+              console.error("[音声再生エラー] RecordingCard 親録音", {
+                recordingId: recording.id,
+                audio_url: recording.audio_url,
+                errorCode: err?.code,
+                errorMessage: err?.message,
+                networkState: el.networkState,
+                readyState: el.readyState,
+              });
+            }}
+            onLoadedMetadata={() => {}}
+          >
             お使いのブラウザは audio 要素をサポートしていません。
           </audio>
         </div>
@@ -313,10 +340,14 @@ export default function RecordingCard({ recording, children }: RecordingCardProp
                 recordingId={recording.id}
                 audioUrl={recording.audio_url}
                 memo={localMemo}
+                learningPending={!!transcript.learning_pending}
                 onSaved={(newContent) => {
                   setTranscript({ ...transcript, content: newContent });
                 }}
                 onMemoSaved={(memo) => setLocalMemo(memo)}
+                onLearningSet={() => {
+                  setTranscript({ ...transcript, learning_pending: true });
+                }}
               />
             )}
           </div>
@@ -369,7 +400,24 @@ export default function RecordingCard({ recording, children }: RecordingCardProp
                 <p className="text-sm text-[#36332E] mb-2">{child.description}</p>
               )}
 
-              <audio controls src={child.audio_url} className="w-full mb-2">
+              <audio
+                controls
+                src={`/api/recordings/${child.id}/audio`}
+                className="w-full mb-2"
+                onError={(e) => {
+                  const el = e.currentTarget;
+                  const err = el.error;
+                  console.error("[音声再生エラー] RecordingCard 子録音", {
+                    recordingId: child.id,
+                    audio_url: child.audio_url,
+                    errorCode: err?.code,
+                    errorMessage: err?.message,
+                    networkState: el.networkState,
+                    readyState: el.readyState,
+                  });
+                }}
+                onLoadedMetadata={() => {}}
+              >
                 お使いのブラウザは audio 要素をサポートしていません。
               </audio>
 

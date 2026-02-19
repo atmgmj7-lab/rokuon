@@ -1,12 +1,30 @@
-"use server";
-
-import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
 const R2_ACCESS_KEY_ID = process.env.R2_ACCESS_KEY_ID;
 const R2_SECRET_ACCESS_KEY = process.env.R2_SECRET_ACCESS_KEY;
 const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME;
 const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL;
+
+/** R2_PUBLIC_URL が S3 API エンドポイント（cloudflarestorage.com）かどうか。その場合は署名付きURLが必要 */
+export function isR2PublicUrlS3Endpoint(): boolean {
+  return !!(R2_PUBLIC_URL && R2_PUBLIC_URL.includes("cloudflarestorage.com"));
+}
+
+/**
+ * R2 オブジェクトの署名付きURLを生成（有効期限: 1時間）
+ * プライベートバケットや S3 API エンドポイント使用時に必要
+ */
+export async function getSignedAudioUrl(r2Key: string): Promise<string> {
+  ensureR2Config();
+  const client = getR2Client();
+  const command = new GetObjectCommand({
+    Bucket: R2_BUCKET_NAME,
+    Key: r2Key,
+  });
+  return getSignedUrl(client, command, { expiresIn: 3600 });
+}
 
 /**
  * R2接続に必要な環境変数が設定されているか確認

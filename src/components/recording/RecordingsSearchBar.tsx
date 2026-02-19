@@ -2,17 +2,18 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useState, useEffect } from "react";
+import type { RecordingCategory } from "@/src/actions/category-actions";
 
 interface RecordingsSearchBarProps {
-  categories: string[];
+  categories: RecordingCategory[];
   initialQuery?: string;
-  initialCategory?: string;
+  initialCategoryId?: string;
 }
 
 export default function RecordingsSearchBar({
   categories,
   initialQuery = "",
-  initialCategory = "",
+  initialCategoryId = "",
 }: RecordingsSearchBarProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -23,11 +24,11 @@ export default function RecordingsSearchBar({
   }, [initialQuery]);
 
   const applyFilters = useCallback(
-    (q: string, cat: string) => {
+    (q: string, catId: string) => {
       const params = new URLSearchParams(searchParams.toString());
       if (q.trim()) params.set("q", q.trim());
       else params.delete("q");
-      if (cat) params.set("cat", cat);
+      if (catId) params.set("cat", catId);
       else params.delete("cat");
       router.push(`/recordings${params.toString() ? `?${params.toString()}` : ""}`);
     },
@@ -36,24 +37,23 @@ export default function RecordingsSearchBar({
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    applyFilters(query, initialCategory);
+    applyFilters(query, initialCategoryId);
   };
 
-  const handleCategoryClick = (cat: string) => {
-    const newCat = initialCategory === cat ? "" : cat;
+  const handleCategoryClick = (catId: string) => {
+    const newCat = initialCategoryId === catId ? "" : catId;
     applyFilters(query, newCat);
   };
 
   return (
     <div className="space-y-4">
-      {/* 検索バー */}
       <form onSubmit={handleSearchSubmit} className="w-full max-w-xl">
         <div className="flex gap-2">
           <input
             type="text"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="タイトル・メモで検索..."
+            placeholder="タイトル・メモ・文字起こしで検索..."
             className="flex-1 px-4 py-2.5 bg-white border border-stone-200 rounded-lg text-[#2D2B2A] placeholder:text-[#9E9A95] focus:ring-2 focus:ring-stone-300 focus:border-stone-300 transition-all"
           />
           <button
@@ -65,7 +65,6 @@ export default function RecordingsSearchBar({
         </div>
       </form>
 
-      {/* カテゴリフィルター（バッジ） */}
       {categories.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-medium text-[#827F7B]">カテゴリ:</span>
@@ -73,7 +72,7 @@ export default function RecordingsSearchBar({
             type="button"
             onClick={() => handleCategoryClick("")}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-              !initialCategory
+              !initialCategoryId
                 ? "bg-[#C87A55] text-white shadow-sm shadow-stone-200/50"
                 : "bg-white border border-stone-200 text-stone-600 hover:bg-stone-50 hover:text-stone-900"
             }`}
@@ -82,16 +81,20 @@ export default function RecordingsSearchBar({
           </button>
           {categories.map((cat) => (
             <button
-              key={cat}
+              key={cat.id}
               type="button"
-              onClick={() => handleCategoryClick(cat)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 ${
-                initialCategory === cat
+              onClick={() => handleCategoryClick(cat.id)}
+              className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-1.5 ${
+                initialCategoryId === cat.id
                   ? "bg-[#C87A55] text-white shadow-sm shadow-stone-200/50"
                   : "bg-white border border-stone-200 text-stone-600 hover:bg-stone-50 hover:text-stone-900"
               }`}
             >
-              {cat}
+              <span
+                className="w-2 h-2 rounded-full"
+                style={{ backgroundColor: cat.color }}
+              />
+              {cat.name}
             </button>
           ))}
         </div>
