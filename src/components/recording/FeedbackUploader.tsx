@@ -80,7 +80,9 @@ export default function FeedbackUploader({
         });
         setSelectedFile(null);
         formRef.current?.reset();
-        
+        const fileInput = formRef.current?.querySelector<HTMLInputElement>('input[type="file"]');
+        if (fileInput) fileInput.value = "";
+
         // 成功コールバック
         if (onSuccess) {
           onSuccess();
@@ -145,7 +147,7 @@ export default function FeedbackUploader({
           />
         </div>
 
-        {/* ファイル選択 */}
+        {/* ファイル選択（AudioUploader と同一ロジック） */}
         <div>
           <label
             htmlFor="feedback-audio"
@@ -153,15 +155,17 @@ export default function FeedbackUploader({
           >
             指導音声ファイル
           </label>
-          <input
-            type="file"
-            id="feedback-audio"
-            name="audio"
-            accept="audio/*"
-            onChange={handleFileChange}
-            disabled={isLoading}
-            className="w-full px-4 py-3 border-2 border-dashed border-stone-300 rounded-lg cursor-pointer hover:border-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-400 transition file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-stone-50 file:text-stone-700 hover:file:bg-stone-100 disabled:opacity-50 disabled:cursor-not-allowed"
-          />
+          <div className="relative">
+            <input
+              type="file"
+              id="feedback-audio"
+              name="audio"
+              accept="audio/*"
+              onChange={handleFileChange}
+              disabled={isLoading}
+              className="w-full px-4 py-3 border-2 border-dashed border-stone-300 rounded-lg cursor-pointer hover:border-stone-400 focus:outline-none focus:ring-2 focus:ring-stone-400 transition file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-stone-50 file:text-stone-700 hover:file:bg-stone-100 disabled:opacity-50 disabled:cursor-not-allowed"
+            />
+          </div>
           {selectedFile && (
             <p className="mt-2 text-sm text-stone-600">
               選択中: <span className="font-medium">{selectedFile.name}</span>

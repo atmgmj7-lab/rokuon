@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import TranscriptRichDisplay from "./TranscriptRichDisplay";
+import FeedbackUploader from "./FeedbackUploader";
 import { analyzeFeedbackPair } from "@/src/actions/analysis-actions";
 import {
   getTranscriptByRecordingId,
@@ -353,6 +354,17 @@ export default function RecordingCard({ recording, children, categories = [] }: 
           </div>
         )}
       </div>
+
+      {/* 指導音声アップロード（課題音声の場合のみ表示） */}
+      {recording.recording_type === "case" && (
+        <div className="mb-6">
+          <FeedbackUploader
+            parentRecordingId={recording.id}
+            parentTitle={recording.title}
+            onSuccess={() => window.location.reload()}
+          />
+        </div>
+      )}
 
       {/* 子録音（指導音声）の表示 */}
       {children.length > 0 && (

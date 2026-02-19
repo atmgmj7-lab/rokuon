@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS recordings (
   memo TEXT,
   -- 録音の分類（例: 初回商談, クロージング, クレーム）
   category TEXT,
+  -- 録音の音声種類（会議, 商談, メモ, 指導など）※ワークスペースカテゴリとは別
+  audio_category TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   FOREIGN KEY (parent_id) REFERENCES recordings(id) ON DELETE CASCADE
