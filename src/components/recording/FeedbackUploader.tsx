@@ -1,6 +1,5 @@
 "use client";
 
-import { uploadFeedback } from "@/src/actions/recording-actions";
 import { useState, useRef } from "react";
 
 interface FeedbackUploaderProps {
@@ -46,8 +45,31 @@ export default function FeedbackUploader({
     setResult(null);
 
     try {
-      const formData = new FormData(e.currentTarget);
-      const response = await uploadFeedback(formData, parentRecordingId);
+      const form = e.currentTarget;
+      const formData = new FormData(form);
+      const title = (formData.get("title") as string) || "";
+      const description = (formData.get("description") as string) || "";
+
+      // FormData を経由せず、生バイナリで API Route に送信（Vercel ENOENT 回避）
+      const res = await fetch("/api/upload-feedback", {
+        method: "POST",
+        body: selectedFile,
+        headers: {
+          "x-file-name": selectedFile.name,
+          "x-title": title,
+          "x-description": description,
+          "x-parent-recording-id": parentRecordingId,
+        },
+      });
+
+      const response = await res.json();
+      if (!res.ok) {
+        setResult({
+          success: false,
+          message: `エラー: ${response.error ?? res.statusText}`,
+        });
+        return;
+      }
 
       if (response.success) {
         setResult({

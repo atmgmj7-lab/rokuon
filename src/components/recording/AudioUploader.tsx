@@ -1,6 +1,5 @@
 "use client";
 
-import { uploadAndTranscribe } from "@/src/actions/recording-actions";
 import { useState, useRef } from "react";
 
 function SubmitButton({ isLoading }: { isLoading: boolean }) {
@@ -78,8 +77,30 @@ export default function AudioUploader() {
     setResult(null);
 
     try {
-      const formData = new FormData(e.currentTarget);
-      const response = await uploadAndTranscribe(formData);
+      const form = e.currentTarget;
+      const formData = new FormData(form);
+      const title = (formData.get("title") as string) || "";
+      const description = (formData.get("description") as string) || "";
+
+      // FormData を経由せず、生バイナリで API Route に送信（Vercel ENOENT 回避）
+      const res = await fetch("/api/upload-and-transcribe", {
+        method: "POST",
+        body: selectedFile,
+        headers: {
+          "x-file-name": selectedFile.name,
+          "x-title": title,
+          "x-description": description,
+        },
+      });
+
+      const response = await res.json();
+      if (!res.ok) {
+        setResult({
+          success: false,
+          message: `エラー: ${response.error ?? res.statusText}`,
+        });
+        return;
+      }
 
       if (response.success) {
         setResult({
