@@ -2,10 +2,8 @@
 
 import { db } from "@/src/lib/db";
 import { getDictionaries } from "@/src/actions/dictionary-actions";
+import { uploadToR2 } from "@/src/lib/r2";
 import { revalidatePath } from "next/cache";
-import { writeFile, mkdir, readFile } from "fs/promises";
-import { existsSync } from "fs";
-import path from "path";
 import OpenAI, { toFile } from "openai";
 
 const openaiClient = new OpenAI({
@@ -37,23 +35,17 @@ export async function addInlineVoiceFeedback(
       return { success: false, error: "音声ファイルがありません" };
     }
 
-    // フロントエンドで指定されたファイル名から拡張子を取得（デフォルトはwebm）
     const originalName = file.name || "recording.webm";
     const extMatch = originalName.match(/\.([^.]+)$/);
     const ext = extMatch ? extMatch[1].toLowerCase() : "webm";
 
-    // 1. ファイルを public/uploads に保存
-    const uploadsDir = path.join(process.cwd(), "public", "uploads");
-    if (!existsSync(uploadsDir)) {
-      await mkdir(uploadsDir, { recursive: true });
-    }
-
     const fileName = `feedback-inline-${Date.now()}.${ext}`;
-    const filePath = path.join(uploadsDir, fileName);
-
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
-    await writeFile(filePath, buffer);
+
+    // 1. Cloudflare R2 にアップロード
+    const mimeType = getMimeType(`.${ext}`);
+    const audioUrl = await uploadToR2(buffer, fileName, mimeType);
 
     // 2. Whisperで文字起こし
     const dicts = await getDictionaries();
@@ -62,9 +54,7 @@ export async function addInlineVoiceFeedback(
       "こんにちは。ここは〇〇と深掘りすべきです。恐れ入ります、もう少しヒアリングを増やしましょう。受注、ローン、リース、月額制、SaaS、アポ、クロージング、架電、テーマ、導入。";
     const prompt = `${whisperPrompt} ${customTerms}`.trim();
 
-    const fileBuffer = await readFile(filePath);
-    const mimeType = getMimeType(`.${ext}`);
-    const whisperFile = await toFile(fileBuffer, fileName, {
+    const whisperFile = await toFile(buffer, fileName, {
       type: mimeType,
     });
 
@@ -100,11 +90,11 @@ export async function addInlineVoiceFeedback(
       items = [content];
     }
 
-    // 5. 新しいフィードバックブロックを挿入
+    // 5. 新しいフィードバックブロックを挿入（audioUrl は R2 の公開URL）
     const newFeedback = {
       type: "feedback",
       text,
-      audioUrl: `/uploads/${fileName}`,
+      audioUrl,
     };
 
     const insertIndex = Math.min(insertAfterIndex + 1, items.length);

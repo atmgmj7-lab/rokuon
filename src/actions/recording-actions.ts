@@ -4,9 +4,8 @@ import { db } from "@/src/lib/db";
 import { getDictionaries } from "@/src/actions/dictionary-actions";
 import { getCorrectionTerms } from "@/src/actions/correction-actions";
 import { formatCallTranscript, mergeFeedbackIntoTranscript } from "@/src/actions/format-actions";
+import { uploadToR2 } from "@/src/lib/r2";
 import { revalidatePath } from "next/cache";
-import { writeFile, mkdir, readFile } from "fs/promises";
-import { existsSync } from "fs";
 import path from "path";
 import OpenAI, { toFile } from "openai";
 
@@ -39,30 +38,22 @@ export async function uploadAndTranscribe(formData: FormData) {
       return { success: false, error: "音声ファイルが選択されていません" };
     }
 
-    // uploadsディレクトリを作成（存在しない場合）
-    const uploadsDir = path.join(process.cwd(), "public", "uploads");
-    if (!existsSync(uploadsDir)) {
-      await mkdir(uploadsDir, { recursive: true });
-    }
-
-    // ファイル名を生成（重複を避けるため）
     const timestamp = Date.now();
     const originalName = audioFile.name;
     const extension = path.extname(originalName);
     const fileName = `${timestamp}${extension}`;
-    const filePath = path.join(uploadsDir, fileName);
 
-    // ファイルをバッファに変換して保存
+    // ファイルをバッファに変換
     const bytes = await audioFile.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    await writeFile(filePath, buffer);
-
-    // ファイルサイズを取得
     const fileSize = buffer.length;
+
+    // Cloudflare R2 にアップロード
+    const contentType = getMimeType(extension);
+    const audioUrl = await uploadToR2(buffer, fileName, contentType);
 
     // Whisper APIで文字起こし
     console.log("🎧 Whisper APIで文字起こし中...");
-    console.log(`📁 ファイルパス: ${filePath}`);
     console.log(`📝 ファイル名: ${fileName}`);
     console.log(`📏 拡張子: ${extension}`);
 
@@ -79,9 +70,8 @@ export async function uploadAndTranscribe(formData: FormData) {
       "こんにちは。恐れ入ります、株式会社の〇〇と申します。よろしくお願いいたします。ローン、リース、受注、月額制、リフォーム、屋根工事、Googleマップ、SaaS、アポ、クロージング、架電、テーマ、導入、従量課金、固定費。";
     const whisperPrompt = `${basePrompt} ${customTerms}`.trim();
 
-    const fileBuffer = await readFile(filePath);
-    const file = await toFile(fileBuffer, fileName, {
-      type: getMimeType(extension),
+    const file = await toFile(buffer, fileName, {
+      type: contentType,
     });
 
     const transcription = await openaiClient.audio.transcriptions.create({
@@ -140,10 +130,7 @@ export async function uploadAndTranscribe(formData: FormData) {
     const transcriptId = `trans_${timestamp}`;
     const now = Date.now();
 
-    // 音声ファイルのパブリックURL
-    const audioUrl = `/uploads/${fileName}`;
-
-    // recordingsテーブルにデータを挿入
+    // recordingsテーブルにデータを挿入（audioUrl は R2 の公開URL）
     await db.execute({
       sql: `INSERT INTO recordings (id, title, description, audio_url, duration, file_size, recording_type, parent_id, category_id, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -203,24 +190,18 @@ export async function uploadFeedback(formData: FormData, parentRecordingId: stri
       return { success: false, error: "音声ファイルが選択されていません" };
     }
 
-    // uploadsディレクトリを作成（存在しない場合）
-    const uploadsDir = path.join(process.cwd(), "public", "uploads");
-    if (!existsSync(uploadsDir)) {
-      await mkdir(uploadsDir, { recursive: true });
-    }
-
-    // ファイル名を生成
     const timestamp = Date.now();
     const originalName = audioFile.name;
     const extension = path.extname(originalName);
     const fileName = `feedback_${timestamp}${extension}`;
-    const filePath = path.join(uploadsDir, fileName);
 
-    // ファイルを保存
     const bytes = await audioFile.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    await writeFile(filePath, buffer);
     const fileSize = buffer.length;
+
+    // Cloudflare R2 にアップロード
+    const contentType = getMimeType(extension);
+    const audioUrl = await uploadToR2(buffer, fileName, contentType);
 
     // Whisper APIで文字起こし（指導音声・ユーザー辞書を注入）
     console.log("🎧 指導音声をWhisper APIで文字起こし中...");
@@ -237,9 +218,8 @@ export async function uploadFeedback(formData: FormData, parentRecordingId: stri
       "こんにちは。ここは〇〇と深掘りすべきです。恐れ入ります、もう少しヒアリングを増やしましょう。受注、ローン、リース、月額制、SaaS、アポ、クロージング、架電、テーマ、導入。";
     const whisperPrompt = `${basePrompt} ${customTerms}`.trim();
 
-    const fileBuffer = await readFile(filePath);
-    const file = await toFile(fileBuffer, fileName, {
-      type: getMimeType(extension),
+    const file = await toFile(buffer, fileName, {
+      type: contentType,
     });
 
     const transcription = await openaiClient.audio.transcriptions.create({
@@ -275,13 +255,11 @@ export async function uploadFeedback(formData: FormData, parentRecordingId: stri
 
     console.log("✅ 指導音声の文字起こし完了");
 
-    // 録音データのIDを生成
     const recordingId = `rec_feedback_${timestamp}`;
     const transcriptId = `trans_feedback_${timestamp}`;
     const now = Date.now();
-    const audioUrl = `/uploads/${fileName}`;
 
-    // recordingsテーブルにデータを挿入（指導音声として）
+    // recordingsテーブルにデータを挿入（指導音声として、audioUrl は R2 の公開URL）
     await db.execute({
       sql: `INSERT INTO recordings (id, title, description, audio_url, duration, file_size, recording_type, parent_id, category_id, created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,

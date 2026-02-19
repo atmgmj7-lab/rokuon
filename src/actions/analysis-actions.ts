@@ -3,8 +3,6 @@
 import { db } from "@/src/lib/db";
 import { revalidatePath } from "next/cache";
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { readFile } from "fs/promises";
-import path from "path";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
 
@@ -51,25 +49,8 @@ export async function analyzeFeedbackPair(caseId: string, feedbackId: string) {
         ? (feedbackTranscriptResult.rows[0].content as string)
         : "";
 
-    // 音声ファイルのパスを取得
-    const caseAudioPath = path.join(
-      process.cwd(),
-      "public",
-      caseRecording.audio_url as string
-    );
-    const feedbackAudioPath = path.join(
-      process.cwd(),
-      "public",
-      feedbackRecording.audio_url as string
-    );
-
-    console.log("📁 音声ファイルパス:", { caseAudioPath, feedbackAudioPath });
-
-    // 音声ファイルを読み込む
-    const caseAudioBuffer = await readFile(caseAudioPath);
-    const feedbackAudioBuffer = await readFile(feedbackAudioPath);
-
-    // Gemini 1.5 Proモデルを使用
+    // 分析は文字起こしテキストのみを使用（音声ファイルは参照しない）
+    // Gemini 1.5 Flashモデルを使用
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
     // マルチモーダルプロンプト

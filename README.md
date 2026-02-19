@@ -106,6 +106,13 @@ TURSO_DATABASE_URL=libsql://xxx.turso.io
 TURSO_AUTH_TOKEN=your_auth_token
 OPENAI_API_KEY=sk-xxx
 GOOGLE_API_KEY=xxx
+
+# Cloudflare R2（音声ファイル保存用）
+R2_ACCOUNT_ID=your-cloudflare-account-id
+R2_ACCESS_KEY_ID=your-r2-access-key-id
+R2_SECRET_ACCESS_KEY=your-r2-secret-access-key
+R2_BUCKET_NAME=your-bucket-name
+R2_PUBLIC_URL=https://your-bucket.your-domain.com
 ```
 
 ### 2. 依存関係のインストール
