@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { Noto_Serif_JP } from "next/font/google";
 import "./globals.css";
 
+export const dynamic = "force-dynamic";
+
 const notoSerifJP = Noto_Serif_JP({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],

@@ -11,6 +11,7 @@ export default function Home() {
           <h1 className="text-5xl font-bold mb-4 text-[#2D2B2A]">
             Recode
           </h1>
+          <p className="text-xs text-stone-400 mb-2">v2.0-fetch-mode</p>
           <p className="text-xl text-[#827F7B] mb-6">
             テレアポ音声を自動文字起こし
           </p>
