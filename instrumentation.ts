@@ -1,6 +1,6 @@
 /**
  * Vercel サーバーレス環境で、一時ファイルの書き込み先を /tmp に強制。
- * mkdir '/var/task/public' エラーを回避するため、os.tmpdir() が /tmp を返すようにする。
+ * Vercel で一時ファイルを /tmp に書き込むよう TMPDIR を設定する。
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME === "nodejs") {

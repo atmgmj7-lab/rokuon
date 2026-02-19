@@ -2,7 +2,7 @@
  * インライン音声フィードバック API Route
  *
  * FormData を経由せず、生バイナリで受け取り R2 に直接アップロード。
- * mkdir/public エラーを回避する。
+ * FormData パースを回避し、Vercel ENOENT エラーを防ぐ。
  *
  * POST body: 音声ファイルの生バイナリ
  * Headers: x-recording-id, x-insert-after-index, x-file-ext

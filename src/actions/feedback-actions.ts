@@ -3,7 +3,7 @@
 import { db } from "@/src/lib/db";
 import { getDictionaries } from "@/src/actions/dictionary-actions";
 import { uploadToR2 } from "@/src/lib/r2";
-// import { revalidatePath } from "next/cache"; // Vercel mkdir/public エラー回避のため一時停止
+// import { revalidatePath } from "next/cache";
 import OpenAI from "openai";
 
 const openaiClient = new OpenAI({

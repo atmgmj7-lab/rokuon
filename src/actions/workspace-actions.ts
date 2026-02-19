@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/src/lib/db";
-// import { revalidatePath } from "next/cache"; // Vercel mkdir/public エラー回避のため一時停止
+// import { revalidatePath } from "next/cache";
 import type { 
   ScriptCategory, 
   ScriptFolder, 

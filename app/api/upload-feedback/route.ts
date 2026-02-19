@@ -2,13 +2,13 @@
  * 指導音声アップロード API Route
  *
  * FormData を経由せず、リクエストボディを生バイナリとして受け取り R2 に直接アップロード。
- * Vercel サーバーレスで FormData パース時の mkdir/public エラーを回避する。
+ * FormData パースを回避し、Vercel ENOENT エラーを防ぐ。
  *
  * POST body: 音声ファイルの生バイナリ
  * Headers: x-file-name, x-title, x-description, x-parent-recording-id
  */
 import { NextRequest, NextResponse } from "next/server";
-// import { revalidatePath } from "next/cache"; // Vercel mkdir/public エラー回避のため一時停止
+// import { revalidatePath } from "next/cache";
 import { db } from "@/src/lib/db";
 import { getDictionaries } from "@/src/actions/dictionary-actions";
 import { getCorrectionTerms } from "@/src/actions/correction-actions";

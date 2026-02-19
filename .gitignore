@@ -44,9 +44,10 @@ pnpm-debug.log*
 *.tsbuildinfo
 next-env.d.ts
 
-# uploads
+# uploads（dummy.txt は Vercel デプロイ用にリポジトリに含める）
 /public/uploads/*
 !/public/uploads/.gitkeep
+!/public/uploads/dummy.txt
 
 # database files
 *.db
