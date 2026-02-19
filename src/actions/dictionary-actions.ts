@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/src/lib/db";
-import { revalidatePath } from "next/cache";
+// import { revalidatePath } from "next/cache"; // Vercel mkdir/public エラー回避のため一時停止
 
 export type DictionaryItem = {
   id: string;
@@ -44,7 +44,7 @@ export async function addDictionary(formData: FormData) {
       args: [id, term.trim(), reading?.trim() || null, category || null, created_at],
     });
 
-    revalidatePath("/recordings/dictionary");
+    // revalidatePath("/recordings/dictionary");
     return { success: true };
   } catch (error) {
     console.error("addDictionary error:", error);
@@ -63,7 +63,7 @@ export async function deleteDictionary(id: string) {
       args: [id],
     });
 
-    revalidatePath("/recordings/dictionary");
+    // revalidatePath("/recordings/dictionary");
     return { success: true };
   } catch (error) {
     console.error("deleteDictionary error:", error);

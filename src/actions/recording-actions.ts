@@ -5,7 +5,7 @@ import { getDictionaries } from "@/src/actions/dictionary-actions";
 import { getCorrectionTerms } from "@/src/actions/correction-actions";
 import { formatCallTranscript, mergeFeedbackIntoTranscript } from "@/src/actions/format-actions";
 import { uploadToR2 } from "@/src/lib/r2";
-import { revalidatePath } from "next/cache";
+// import { revalidatePath } from "next/cache"; // Vercel mkdir/public エラー回避のため一時停止
 import OpenAI from "openai";
 
 /** 拡張子を取得（path モジュールを使わず、Vercel サーバーレスで安全に動作） */
@@ -155,12 +155,8 @@ export async function uploadAndTranscribe(formData: FormData) {
 
     console.log("✅ データベースに保存完了");
 
-    // ページを再検証（Vercel サーバーレスで mkdir エラーが出る場合があるため try-catch）
-    try {
-      revalidatePath("/");
-    } catch (revalidateError) {
-      console.warn("⚠️ revalidatePath スキップ（キャッシュ無効化のみ失敗）:", revalidateError);
-    }
+    // revalidatePath は Vercel で mkdir/public エラーを引き起こす可能性があるため一時停止
+    // try { revalidatePath("/"); } catch (e) {}
 
     return {
       success: true,
@@ -283,11 +279,8 @@ export async function uploadFeedback(formData: FormData, parentRecordingId: stri
 
     console.log("✅ 指導音声をデータベースに保存完了");
 
-    try {
-      revalidatePath("/recordings");
-    } catch (revalidateError) {
-      console.warn("⚠️ revalidatePath スキップ:", revalidateError);
-    }
+    // revalidatePath は Vercel で mkdir/public エラーを引き起こす可能性があるため一時停止
+    // try { revalidatePath("/recordings"); } catch (e) {}
 
     return {
       success: true,
@@ -376,8 +369,8 @@ export async function updateRecordingMemo(recordingId: string, memo: string) {
       sql: "UPDATE recordings SET memo = ?, updated_at = ? WHERE id = ?",
       args: [memo || null, Date.now(), recordingId],
     });
-    revalidatePath("/recordings");
-    revalidatePath("/");
+    // revalidatePath("/recordings");
+    // revalidatePath("/");
     return { success: true };
   } catch (error) {
     console.error("❌ メモ更新エラー:", error);
@@ -392,8 +385,8 @@ export async function updateRecordingCategory(recordingId: string, category: str
       sql: "UPDATE recordings SET category = ?, updated_at = ? WHERE id = ?",
       args: [category?.trim() || null, Date.now(), recordingId],
     });
-    revalidatePath("/recordings");
-    revalidatePath("/");
+    // revalidatePath("/recordings");
+    // revalidatePath("/");
     return { success: true };
   } catch (error) {
     console.error("❌ カテゴリ更新エラー:", error);
@@ -434,8 +427,8 @@ export async function updateRecordingCustomId(recordingId: string, customId: str
       sql: "UPDATE recordings SET custom_id = ?, updated_at = ? WHERE id = ?",
       args: [customId || null, Date.now(), recordingId],
     });
-    revalidatePath("/recordings");
-    revalidatePath("/");
+    // revalidatePath("/recordings");
+    // revalidatePath("/");
     return { success: true };
   } catch (error) {
     console.error("❌ 録音更新エラー:", error);
@@ -465,7 +458,7 @@ export async function deleteRecording(recordingId: string) {
       sql: "DELETE FROM recordings WHERE id = ?",
       args: [recordingId],
     });
-    revalidatePath("/recordings");
+    // revalidatePath("/recordings");
     return { success: true };
   } catch (error) {
     console.error("❌ 録音削除エラー:", error);
@@ -480,7 +473,7 @@ export async function updateTranscriptContent(transcriptId: string, newContent: 
       sql: "UPDATE transcripts SET content = ? WHERE id = ?",
       args: [newContent, transcriptId],
     });
-    revalidatePath("/recordings");
+    // revalidatePath("/recordings");
     return { success: true };
   } catch (error) {
     console.error("❌ 文字起こし更新エラー:", error);

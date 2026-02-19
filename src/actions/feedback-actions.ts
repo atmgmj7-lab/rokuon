@@ -3,7 +3,7 @@
 import { db } from "@/src/lib/db";
 import { getDictionaries } from "@/src/actions/dictionary-actions";
 import { uploadToR2 } from "@/src/lib/r2";
-import { revalidatePath } from "next/cache";
+// import { revalidatePath } from "next/cache"; // Vercel mkdir/public エラー回避のため一時停止
 import OpenAI from "openai";
 
 const openaiClient = new OpenAI({
@@ -104,12 +104,8 @@ export async function addInlineVoiceFeedback(
       args: [newContent, transcriptId],
     });
 
-    try {
-      revalidatePath("/");
-      revalidatePath("/recordings");
-    } catch (revalidateError) {
-      console.warn("⚠️ revalidatePath スキップ:", revalidateError);
-    }
+    // revalidatePath("/");
+    // revalidatePath("/recordings");
 
     return {
       success: true,
@@ -160,8 +156,8 @@ export async function deleteInlineVoiceFeedback(
       args: [newContent, transcriptId],
     });
 
-    revalidatePath("/");
-    revalidatePath("/recordings");
+    // revalidatePath("/");
+    // revalidatePath("/recordings");
 
     return {
       success: true,

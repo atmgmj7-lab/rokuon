@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/src/lib/db";
-import { revalidatePath } from "next/cache";
+// import { revalidatePath } from "next/cache"; // Vercel mkdir/public エラー回避のため一時停止
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const genAI = new GoogleGenerativeAI(process.env.GOOGLE_AI_API_KEY || "");
@@ -142,7 +142,7 @@ export async function analyzeFeedbackPair(caseId: string, feedbackId: string) {
 
     console.log("✅ 分析結果をデータベースに保存完了");
 
-    revalidatePath("/recordings");
+    // revalidatePath("/recordings");
 
     return {
       success: true,

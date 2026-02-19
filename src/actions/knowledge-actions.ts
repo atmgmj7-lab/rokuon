@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/src/lib/db";
-import { revalidatePath } from "next/cache";
+// import { revalidatePath } from "next/cache"; // Vercel mkdir/public エラー回避のため一時停止
 import type { KnowledgeBase } from "@/src/types/script";
 
 // Figmaデータを一括インポート
@@ -46,7 +46,7 @@ export async function importStaticKnowledge(
       importedCount++;
     }
 
-    revalidatePath("/knowledge");
+    // revalidatePath("/knowledge");
 
     console.log(`✅ ${importedCount}件のナレッジをインポートしました`);
 
@@ -176,7 +176,7 @@ export async function createKnowledge(
       ],
     });
 
-    revalidatePath("/knowledge");
+    // revalidatePath("/knowledge");
 
     return { success: true, knowledgeId: id };
   } catch (error) {

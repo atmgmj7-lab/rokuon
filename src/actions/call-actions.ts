@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/src/lib/db";
-import { revalidatePath } from "next/cache";
+// import { revalidatePath } from "next/cache"; // Vercel mkdir/public エラー回避のため一時停止
 import type { SituationTag, ItemSituation, EnrichedScriptItem } from "@/src/types/call";
 
 // ========================================
@@ -24,7 +24,7 @@ export async function createSituationTag(
       args: [id, name, category, description || "", sortOrder, now],
     });
 
-    revalidatePath("/call");
+    // revalidatePath("/call");
     return { success: true, tagId: id };
   } catch (error) {
     console.error("❌ 状況タグ作成エラー:", error);
@@ -92,7 +92,7 @@ export async function linkItemToSituation(
       args: [id, itemId, situationTagId, priority, now],
     });
 
-    revalidatePath("/call");
+    // revalidatePath("/call");
     return { success: true };
   } catch (error) {
     console.error("❌ 紐付けエラー:", error);
@@ -108,7 +108,7 @@ export async function unlinkItemFromSituation(itemId: string, situationTagId: st
       args: [itemId, situationTagId],
     });
 
-    revalidatePath("/call");
+    // revalidatePath("/call");
     return { success: true };
   } catch (error) {
     console.error("❌ 紐付け解除エラー:", error);

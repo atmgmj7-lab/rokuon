@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/src/lib/db";
-import { revalidatePath } from "next/cache";
+// import { revalidatePath } from "next/cache"; // Vercel mkdir/public エラー回避のため一時停止
 import type { ScriptFlowData, Script, ParsedScript, ParsedScriptLog } from "@/src/types/script";
 
 // スクリプトを作成
@@ -16,7 +16,7 @@ export async function createScript(title: string, flowData: ScriptFlowData) {
       args: [scriptId, title, JSON.stringify(flowData), now, now],
     });
 
-    revalidatePath("/scripts");
+    // revalidatePath("/scripts");
     return { success: true, scriptId };
   } catch (error) {
     console.error("❌ スクリプト作成エラー:", error);
@@ -41,8 +41,8 @@ export async function updateScript(
       args: [title, JSON.stringify(flowData), now, scriptId],
     });
 
-    revalidatePath("/scripts");
-    revalidatePath(`/scripts/${scriptId}`);
+    // revalidatePath("/scripts");
+    // revalidatePath(`/scripts/${scriptId}`);
     return { success: true };
   } catch (error) {
     console.error("❌ スクリプト更新エラー:", error);
@@ -61,7 +61,7 @@ export async function deleteScript(scriptId: string) {
       args: [scriptId],
     });
 
-    revalidatePath("/scripts");
+    // revalidatePath("/scripts");
     return { success: true };
   } catch (error) {
     console.error("❌ スクリプト削除エラー:", error);
@@ -134,7 +134,7 @@ export async function saveScriptLog(
 
     console.log("✅ スクリプトログ保存完了:", { logId, scriptId, resultStatus });
     
-    revalidatePath(`/scripts/${scriptId}`);
+    // revalidatePath(`/scripts/${scriptId}`);
     return { success: true, logId };
   } catch (error) {
     console.error("❌ スクリプトログ保存エラー:", error);

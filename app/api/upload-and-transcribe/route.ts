@@ -8,7 +8,7 @@
  * Headers: x-file-name, x-title, x-description
  */
 import { NextRequest, NextResponse } from "next/server";
-import { revalidatePath } from "next/cache";
+// import { revalidatePath } from "next/cache"; // Vercel mkdir/public エラー回避のため一時停止
 import { db } from "@/src/lib/db";
 import { getDictionaries } from "@/src/actions/dictionary-actions";
 import { getCorrectionTerms } from "@/src/actions/correction-actions";
@@ -153,11 +153,7 @@ export async function POST(request: NextRequest) {
       args: [transcriptId, recordingId, contentToSave, "ja", now],
     });
 
-    try {
-      revalidatePath("/");
-    } catch {
-      // キャッシュ無効化の失敗は無視
-    }
+    // revalidatePath("/");
 
     return NextResponse.json({
       success: true,

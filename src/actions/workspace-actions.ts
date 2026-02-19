@@ -1,7 +1,7 @@
 "use server";
 
 import { db } from "@/src/lib/db";
-import { revalidatePath } from "next/cache";
+// import { revalidatePath } from "next/cache"; // Vercel mkdir/public エラー回避のため一時停止
 import type { 
   ScriptCategory, 
   ScriptFolder, 
@@ -27,7 +27,7 @@ export async function createCategory(name: string, description?: string) {
       args: [id, name, description || "", now],
     });
 
-    revalidatePath("/workspace");
+    // revalidatePath("/workspace");
     return { success: true, categoryId: id };
   } catch (error) {
     console.error("❌ カテゴリ作成エラー:", error);
@@ -61,7 +61,7 @@ export async function updateCategory(categoryId: string, name: string, descripti
       args: [name, description || "", categoryId],
     });
 
-    revalidatePath("/workspace");
+    // revalidatePath("/workspace");
     return { success: true };
   } catch (error) {
     console.error("❌ カテゴリ更新エラー:", error);
@@ -76,7 +76,7 @@ export async function deleteCategory(categoryId: string) {
       args: [categoryId],
     });
 
-    revalidatePath("/workspace");
+    // revalidatePath("/workspace");
     return { success: true };
   } catch (error) {
     console.error("❌ カテゴリ削除エラー:", error);
@@ -102,7 +102,7 @@ export async function createFolder(
       args: [id, categoryId, name, folderType, sortOrder, isVisibleInSidebar, now],
     });
 
-    revalidatePath("/workspace");
+    // revalidatePath("/workspace");
     return { success: true, folderId: id };
   } catch (error) {
     console.error("❌ フォルダ作成エラー:", error);
@@ -152,7 +152,7 @@ export async function updateFolder(
       });
     }
 
-    revalidatePath("/workspace");
+    // revalidatePath("/workspace");
     return { success: true };
   } catch (error) {
     console.error("❌ フォルダ更新エラー:", error);
@@ -168,7 +168,7 @@ export async function toggleSidebarVisibility(folderId: string, isVisible: boole
       args: [isVisible ? 1 : 0, folderId],
     });
 
-    revalidatePath("/workspace");
+    // revalidatePath("/workspace");
     return { success: true };
   } catch (error) {
     console.error("❌ 表示切り替えエラー:", error);
@@ -205,7 +205,7 @@ export async function deleteFolder(folderId: string) {
       args: [folderId],
     });
 
-    revalidatePath("/workspace");
+    // revalidatePath("/workspace");
     return { success: true };
   } catch (error) {
     console.error("❌ フォルダ削除エラー:", error);
@@ -222,8 +222,8 @@ export async function deleteItem(itemId: string) {
       args: [itemId],
     });
 
-    revalidatePath("/workspace");
-    revalidatePath("/call");
+    // revalidatePath("/workspace");
+    // revalidatePath("/call");
     return { success: true };
   } catch (error) {
     console.error("❌ アイテム削除エラー:", error);
@@ -269,8 +269,8 @@ export async function createItem(
       ],
     });
 
-    revalidatePath("/workspace");
-    revalidatePath("/call");
+    // revalidatePath("/workspace");
+    // revalidatePath("/call");
     return { success: true, itemId: id };
   } catch (error) {
     console.error("❌ アイテム作成エラー:", error);
@@ -470,8 +470,8 @@ export async function createItemResponse(
       args: [id, parentItemId, responseText, nextItemId || null, sortOrder, now],
     });
 
-    revalidatePath("/workspace");
-    revalidatePath("/call");
+    // revalidatePath("/workspace");
+    // revalidatePath("/call");
     return { success: true, responseId: id };
   } catch (error) {
     console.error("❌ 返答パターン作成エラー:", error);
@@ -513,8 +513,8 @@ export async function updateItemResponse(
       args: [responseText, nextItemId || null, responseId],
     });
 
-    revalidatePath("/workspace");
-    revalidatePath("/call");
+    // revalidatePath("/workspace");
+    // revalidatePath("/call");
     return { success: true };
   } catch (error) {
     console.error("❌ 返答パターン更新エラー:", error);
@@ -530,8 +530,8 @@ export async function deleteItemResponse(responseId: string) {
       args: [responseId],
     });
 
-    revalidatePath("/workspace");
-    revalidatePath("/call");
+    // revalidatePath("/workspace");
+    // revalidatePath("/call");
     return { success: true };
   } catch (error) {
     console.error("❌ 返答パターン削除エラー:", error);
@@ -572,7 +572,7 @@ export async function createDynamicCategory(name: string, color: string = "#6B72
       args: [id, name, color, 0, now],
     });
 
-    revalidatePath("/workspace");
+    // revalidatePath("/workspace");
     return { success: true, categoryId: id };
   } catch (error) {
     console.error("❌ カテゴリ作成エラー:", error);
@@ -613,8 +613,8 @@ export async function createTimeline(title: string, description?: string) {
       args: [id, title, description || "", 0, now],
     });
 
-    revalidatePath("/workspace");
-    revalidatePath("/call");
+    // revalidatePath("/workspace");
+    // revalidatePath("/call");
     return { success: true, timelineId: id };
   } catch (error) {
     console.error("❌ タイムライン作成エラー:", error);
@@ -633,8 +633,8 @@ export async function addItemToTimeline(timelineId: string, scriptItemId: string
       args: [id, timelineId, scriptItemId, sortOrder, now],
     });
 
-    revalidatePath("/workspace");
-    revalidatePath("/call");
+    // revalidatePath("/workspace");
+    // revalidatePath("/call");
     return { success: true };
   } catch (error) {
     console.error("❌ タイムラインブロック追加エラー:", error);
@@ -744,8 +744,8 @@ export async function createSituation(name: string, description?: string, icon: 
       args: [id, name, description || "", icon, color, 0, now],
     });
 
-    revalidatePath("/workspace");
-    revalidatePath("/call");
+    // revalidatePath("/workspace");
+    // revalidatePath("/call");
     return { success: true, situationId: id };
   } catch (error) {
     console.error("❌ 状況タグ作成エラー:", error);
@@ -761,8 +761,8 @@ export async function updateSituation(id: string, name: string, description?: st
       args: [name, description || "", icon || "📌", color || "#3B82F6", id],
     });
 
-    revalidatePath("/workspace");
-    revalidatePath("/call");
+    // revalidatePath("/workspace");
+    // revalidatePath("/call");
     return { success: true };
   } catch (error) {
     console.error("❌ 状況タグ更新エラー:", error);
@@ -778,8 +778,8 @@ export async function deleteSituation(id: string) {
       args: [id],
     });
 
-    revalidatePath("/workspace");
-    revalidatePath("/call");
+    // revalidatePath("/workspace");
+    // revalidatePath("/call");
     return { success: true };
   } catch (error) {
     console.error("❌ 状況タグ削除エラー:", error);
@@ -821,8 +821,8 @@ export async function createCheckItem(name: string, description?: string, catego
       args: [id, name, description || "", category || "", 0, now],
     });
 
-    revalidatePath("/workspace");
-    revalidatePath("/call");
+    // revalidatePath("/workspace");
+    // revalidatePath("/call");
     return { success: true, checkItemId: id };
   } catch (error) {
     console.error("❌ チェック項目作成エラー:", error);
@@ -838,8 +838,8 @@ export async function updateCheckItem(id: string, name: string, description?: st
       args: [name, description || "", category || "", id],
     });
 
-    revalidatePath("/workspace");
-    revalidatePath("/call");
+    // revalidatePath("/workspace");
+    // revalidatePath("/call");
     return { success: true };
   } catch (error) {
     console.error("❌ チェック項目更新エラー:", error);
@@ -855,8 +855,8 @@ export async function deleteCheckItem(id: string) {
       args: [id],
     });
 
-    revalidatePath("/workspace");
-    revalidatePath("/call");
+    // revalidatePath("/workspace");
+    // revalidatePath("/call");
     return { success: true };
   } catch (error) {
     console.error("❌ チェック項目削除エラー:", error);
@@ -905,8 +905,8 @@ export async function addCheckItemToTimeline(timelineId: string, checkItemId: st
       args: [id, timelineId, checkItemId, sortOrder, now],
     });
 
-    revalidatePath("/workspace");
-    revalidatePath("/call");
+    // revalidatePath("/workspace");
+    // revalidatePath("/call");
     return { success: true };
   } catch (error) {
     console.error("❌ チェック項目紐付けエラー:", error);
@@ -922,8 +922,8 @@ export async function removeCheckItemFromTimeline(timelineId: string, checkItemI
       args: [timelineId, checkItemId],
     });
 
-    revalidatePath("/workspace");
-    revalidatePath("/call");
+    // revalidatePath("/workspace");
+    // revalidatePath("/call");
     return { success: true };
   } catch (error) {
     console.error("❌ チェック項目紐付け削除エラー:", error);
@@ -966,8 +966,8 @@ export async function createTimelineWithSituation(title: string, situationId: st
       args: [id, title, description || "", situationId, 0, now],
     });
 
-    revalidatePath("/workspace");
-    revalidatePath("/call");
+    // revalidatePath("/workspace");
+    // revalidatePath("/call");
     return { success: true, timelineId: id };
   } catch (error) {
     console.error("❌ タイムライン作成エラー:", error);
@@ -983,8 +983,8 @@ export async function deleteTimeline(id: string) {
       args: [id],
     });
 
-    revalidatePath("/workspace");
-    revalidatePath("/call");
+    // revalidatePath("/workspace");
+    // revalidatePath("/call");
     return { success: true };
   } catch (error) {
     console.error("❌ タイムライン削除エラー:", error);
@@ -1000,8 +1000,8 @@ export async function removeBlockFromTimeline(timelineId: string, scriptItemId: 
       args: [timelineId, scriptItemId],
     });
 
-    revalidatePath("/workspace");
-    revalidatePath("/call");
+    // revalidatePath("/workspace");
+    // revalidatePath("/call");
     return { success: true };
   } catch (error) {
     console.error("❌ ブロック削除エラー:", error);
