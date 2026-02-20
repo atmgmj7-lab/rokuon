@@ -49,6 +49,7 @@ function ChildTranscriptButton({
   const [show, setShow] = useState(false);
   const [transcript, setTranscript] = useState<{ id: string; content: string; learning_pending?: boolean } | null | undefined>(undefined);
   const [localIsTraining, setLocalIsTraining] = useState(!!isTrainingData);
+  const [isPending, setIsPending] = useState(false);
 
   useEffect(() => {
     setLocalIsTraining(!!isTrainingData);
@@ -62,13 +63,17 @@ function ChildTranscriptButton({
     setShow(!show);
   };
 
-  const handleTrainingToggle = async () => {
-    const result = await setRecordingTrainingData(recordingId, !localIsTraining);
-    if (result.success) {
-      setLocalIsTraining(!localIsTraining);
-    } else {
-      alert(`設定に失敗しました: ${result.error}`);
-    }
+  const handleTrainingToggle = () => {
+    const nextValue = !localIsTraining;
+    setLocalIsTraining(nextValue);
+    setIsPending(true);
+    setRecordingTrainingData(recordingId, nextValue).then((result) => {
+      setIsPending(false);
+      if (!result.success) {
+        setLocalIsTraining(!nextValue);
+        alert(`設定に失敗しました: ${result.error}`);
+      }
+    });
   };
 
   return (
@@ -83,14 +88,15 @@ function ChildTranscriptButton({
         <button
           type="button"
           onClick={handleTrainingToggle}
+          disabled={isPending}
           className={`px-3 py-1 rounded-lg text-xs font-medium transition-all ${
             localIsTraining
               ? "bg-[#4A463F] text-white"
               : "bg-white border border-[#EBE8E3] text-[#36332E] hover:bg-[#FCFAF8]"
-          }`}
-          title="メイン音声＋指導音声のペアをAI学習用データとして登録"
+          } ${isPending ? "opacity-70 cursor-wait" : ""}`}
+          title={localIsTraining ? "クリックで学習データ登録を解除" : "メイン音声＋指導音声のペアをAI学習用データとして登録"}
         >
-          {localIsTraining ? "✓ 学習データ登録済" : "このペアを学習データに登録"}
+          {isPending ? "処理中..." : localIsTraining ? "✓ 学習データ登録済" : "このペアを学習データに登録"}
         </button>
       </div>
       {show && transcript !== undefined && (
