@@ -22,6 +22,10 @@ CREATE TABLE IF NOT EXISTS recordings (
   audio_category_id TEXT,
   -- 学習データフラグ（指導音声ペアがAI学習用として登録されているか）
   is_training_data INTEGER DEFAULT 0,
+  -- 論理削除（ゴミ箱へ移動）
+  is_deleted INTEGER DEFAULT 0,
+  -- 完全削除時に学習データとしてテキストのみ残す場合のアーカイブフラグ
+  is_archived_training_data INTEGER DEFAULT 0,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   FOREIGN KEY (parent_id) REFERENCES recordings(id) ON DELETE CASCADE

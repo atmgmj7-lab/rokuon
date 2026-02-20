@@ -36,6 +36,12 @@ export default function Home() {
             >
               録音履歴
             </Link>
+            <Link
+              href="/trash"
+              className="px-10 py-6 bg-white border-2 border-stone-200 text-stone-600 hover:bg-stone-50 rounded-2xl font-bold text-lg transition-all shadow-paper-md"
+            >
+              ゴミ箱
+            </Link>
           </div>
 
           {/* 録音機能 */}

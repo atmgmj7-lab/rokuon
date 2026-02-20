@@ -107,6 +107,7 @@ export default function TranscriptRichDisplay({
 }: TranscriptRichDisplayProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const [currentTime, setCurrentTime] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1.0);
@@ -128,6 +129,13 @@ export default function TranscriptRichDisplay({
     setPlaybackRate(rate);
     if (audioRef.current) audioRef.current.playbackRate = rate;
   };
+
+  useEffect(() => {
+    return () => {
+      mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current = null;
+    };
+  }, []);
 
   // 現在ハイライトされている段落のインデックスを特定
   const activeIndex = items.findIndex(
@@ -253,11 +261,21 @@ export default function TranscriptRichDisplay({
     }
   };
 
+  const stopMediaStream = () => {
+    const stream = mediaStreamRef.current;
+    if (stream) {
+      stream.getTracks().forEach((t) => t.stop());
+      mediaStreamRef.current = null;
+    }
+  };
+
   const startRecording = async (index: number) => {
     if (!recordingId) return;
     if (audioRef.current) audioRef.current.pause();
+    stopMediaStream();
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaStreamRef.current = stream;
       const recorder = new MediaRecorder(stream);
       mediaRecorderRef.current = recorder;
       audioChunksRef.current = [];
@@ -266,14 +284,11 @@ export default function TranscriptRichDisplay({
         if (e.data.size > 0) audioChunksRef.current.push(e.data);
       };
 
-      recorder.onstop = () => {
-        stream.getTracks().forEach((t) => t.stop());
-      };
-
       recorder.start();
       setRecordingIndex(index);
     } catch (err) {
       console.error("マイク取得エラー:", err);
+      stopMediaStream();
       alert("マイクへのアクセスができません。ブラウザの設定を確認してください。");
     }
   };
@@ -284,6 +299,7 @@ export default function TranscriptRichDisplay({
 
     return new Promise<void>((resolve) => {
       recorder.onstop = async () => {
+        stopMediaStream();
         const mimeType = recorder.mimeType || "audio/webm";
         const blob = new Blob(audioChunksRef.current, { type: mimeType });
         const ext = mimeType.includes("mp4") ? "m4a" : mimeType.includes("ogg") ? "ogg" : "webm";

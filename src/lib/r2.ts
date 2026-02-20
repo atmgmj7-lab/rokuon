@@ -1,4 +1,4 @@
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const R2_ACCOUNT_ID = process.env.R2_ACCOUNT_ID;
@@ -88,4 +88,21 @@ export async function uploadToR2(
   // R2_PUBLIC_URL は末尾スラッシュなしを想定（例: https://xxx.r2.dev）
   const baseUrl = R2_PUBLIC_URL!.replace(/\/$/, "");
   return `${baseUrl}/${key}`;
+}
+
+/**
+ * R2 からオブジェクトを物理削除
+ * @param r2Key - オブジェクトキー（例: uploads/1739123456789.mp3）
+ */
+export async function deleteFromR2(r2Key: string): Promise<void> {
+  if (!r2Key?.trim()) return;
+  ensureR2Config();
+  const client = getR2Client();
+  const key = r2Key.startsWith("uploads/") ? r2Key : `uploads/${r2Key}`;
+  await client.send(
+    new DeleteObjectCommand({
+      Bucket: R2_BUCKET_NAME,
+      Key: key,
+    })
+  );
 }

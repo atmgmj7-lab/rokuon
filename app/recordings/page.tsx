@@ -43,6 +43,12 @@ export default async function RecordingsPage({
             <h1 className="text-4xl font-bold text-[#2D2B2A]">録音一覧</h1>
             <div className="flex flex-wrap gap-2">
               <Link
+                href="/trash"
+                className="inline-flex items-center gap-1 px-5 py-2.5 bg-white border border-stone-200 text-stone-600 rounded-lg font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
+              >
+                ゴミ箱
+              </Link>
+              <Link
                 href="/recordings/dictionary"
                 className="inline-flex items-center gap-1 px-5 py-2.5 bg-white border border-stone-200 text-stone-600 rounded-lg font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
               >

@@ -212,7 +212,7 @@ export default function RecordingCard({ recording, children, audioCategories = [
           <div className="flex items-center gap-3 flex-wrap">
             <button
               onClick={async () => {
-                if (window.confirm("本当にこの録音データを削除しますか？")) {
+                if (window.confirm("この録音をゴミ箱に移動しますか？")) {
                   const result = await deleteRecording(recording.id);
                   if (result.success) {
                     window.location.reload();
@@ -384,7 +384,7 @@ export default function RecordingCard({ recording, children, audioCategories = [
                 <div className="flex items-center gap-2 flex-wrap">
                   <button
                     onClick={async () => {
-                      if (window.confirm("本当にこの録音データを削除しますか？")) {
+                      if (window.confirm("この録音をゴミ箱に移動しますか？")) {
                         const result = await deleteRecording(child.id);
                         if (result.success) {
                           window.location.reload();

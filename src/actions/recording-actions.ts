@@ -25,6 +25,8 @@ export async function searchRecordings(
       LEFT JOIN audio_categories ac ON r.audio_category_id = ac.id
       LEFT JOIN transcripts t ON t.recording_id = r.id
       WHERE r.parent_id IS NULL
+        AND (r.is_deleted = 0 OR r.is_deleted IS NULL)
+        AND (r.is_archived_training_data = 0 OR r.is_archived_training_data IS NULL)
     `;
     const args: (string | number)[] = [];
 
@@ -70,6 +72,8 @@ export async function getAllRecordings() {
     const result = await db.execute(
       `SELECT r.*, ac.name as audio_category_name FROM recordings r
        LEFT JOIN audio_categories ac ON r.audio_category_id = ac.id
+       WHERE (r.is_deleted = 0 OR r.is_deleted IS NULL)
+         AND (r.is_archived_training_data = 0 OR r.is_archived_training_data IS NULL)
        ORDER BY r.created_at DESC`
     );
 
@@ -259,14 +263,13 @@ export async function updateTranscript(transcriptId: string, content: string) {
   }
 }
 
-// 録音データを削除（transcripts は ON DELETE CASCADE で自動削除）
+// 録音データを論理削除（ゴミ箱へ移動）
 export async function deleteRecording(recordingId: string) {
   try {
     await db.execute({
-      sql: "DELETE FROM recordings WHERE id = ?",
-      args: [recordingId],
+      sql: "UPDATE recordings SET is_deleted = 1, updated_at = ? WHERE id = ?",
+      args: [Date.now(), recordingId],
     });
-    // revalidatePath("/recordings");
     return { success: true };
   } catch (error) {
     console.error("❌ 録音削除エラー:", error);
