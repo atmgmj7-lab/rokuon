@@ -85,16 +85,57 @@ export async function restoreRecording(recordingId: string) {
   }
 }
 
+/** トランスクリプトJSONから type: "feedback" の audioUrl を抽出し、R2キー一覧を返す */
+function extractR2KeysFromTranscriptContent(content: string): string[] {
+  const keys: string[] = [];
+  let items: unknown[];
+  try {
+    const parsed = JSON.parse(content);
+    items = Array.isArray(parsed) ? parsed : [parsed];
+  } catch {
+    return keys;
+  }
+  for (const x of items) {
+    if (typeof x !== "object" || x === null) continue;
+    const obj = x as { type?: string; audioUrl?: string };
+    if (obj.type === "feedback" && typeof obj.audioUrl === "string" && obj.audioUrl.trim()) {
+      const k = extractR2KeyFromUrl(obj.audioUrl);
+      if (k) keys.push(k);
+    }
+  }
+  return keys;
+}
+
+/** トランスクリプトJSONから audioUrl を除去（学習データ保護でテキストのみ残す） */
+function stripAudioUrlFromTranscriptContent(content: string): string {
+  let items: unknown[];
+  try {
+    const parsed = JSON.parse(content);
+    items = Array.isArray(parsed) ? parsed : [parsed];
+  } catch {
+    return content;
+  }
+  const stripped = items.map((x) => {
+    if (typeof x !== "object" || x === null) return x;
+    const obj = x as { type?: string; audioUrl?: string; text?: string };
+    if (obj.type === "feedback") {
+      const { audioUrl: _a, ...rest } = obj;
+      return rest;
+    }
+    return x;
+  });
+  return JSON.stringify(stripped);
+}
+
 /**
- * 完全削除（R2 + Turso 連動、学習データ保護）
- * - ステップA: r2_key, is_training_data を取得
- * - ステップB: R2 から音声ファイルを物理削除
- * - ステップC: is_training_data = true の場合はレコードを残し r2_key を NULL に、false の場合は DELETE
+ * 完全削除（R2 + Turso 連動、学習データ保護、インライン音声一括削除）
+ * - 親削除時: 親・子・トランスクリプト内インライン音声をすべてR2から削除
+ * - 学習データ時: 音声は削除するが、テキスト（JSON・summary）は残す
  */
 export async function deleteRecordingPermanently(recordingId: string) {
   try {
     const rowResult = await db.execute({
-      sql: "SELECT id, r2_key, audio_url, is_training_data FROM recordings WHERE id = ? AND is_deleted = 1",
+      sql: "SELECT id, r2_key, audio_url, is_training_data, parent_id FROM recordings WHERE id = ? AND is_deleted = 1",
       args: [recordingId],
     });
 
@@ -102,44 +143,95 @@ export async function deleteRecordingPermanently(recordingId: string) {
       return { success: false, error: "ゴミ箱内に該当する録音が見つかりません" };
     }
 
-    const row = rowResult.rows[0] as { r2_key?: string | null; audio_url?: string; is_training_data?: number };
+    const row = rowResult.rows[0] as {
+      r2_key?: string | null;
+      audio_url?: string;
+      is_training_data?: number;
+      parent_id?: string | null;
+    };
+    const isTrainingData = (row.is_training_data as number) === 1;
+    const parentId = (row.parent_id as string | null)?.trim() || null;
+    const isParent = !parentId;
+
+    const r2KeysToDelete = new Set<string>();
+
+    const addKey = (r2Key: string | null) => {
+      if (r2Key?.trim()) r2KeysToDelete.add(r2Key.trim());
+    };
+
     let r2Key = (row.r2_key as string | null | undefined)?.trim() || null;
     const audioUrl = (row.audio_url as string)?.trim();
-    const isTrainingData = (row.is_training_data as number) === 1;
+    if (!r2Key && audioUrl) r2Key = extractR2KeyFromUrl(audioUrl);
+    addKey(r2Key);
 
-    if (!r2Key && audioUrl) {
-      r2Key = extractR2KeyFromUrl(audioUrl);
-    }
+    if (isParent) {
+      const childrenResult = await db.execute({
+        sql: "SELECT id, r2_key, audio_url FROM recordings WHERE parent_id = ?",
+        args: [recordingId],
+      });
+      for (const c of childrenResult.rows as Array<{ r2_key?: string | null; audio_url?: string }>) {
+        let ck = (c.r2_key as string | null | undefined)?.trim() || null;
+        const cu = (c.audio_url as string)?.trim();
+        if (!ck && cu) ck = extractR2KeyFromUrl(cu);
+        addKey(ck);
+      }
 
-    // ステップB: R2 から物理削除（r2_key がある場合のみ）
-    if (r2Key) {
-      try {
-        await deleteFromR2(r2Key);
-      } catch (r2Error) {
-        console.warn("R2削除スキップ（オブジェクトなし or 設定未済）:", r2Error);
-        // R2 が未設定やオブジェクトが存在しない場合も DB 処理は続行
+      const transResult = await db.execute({
+        sql: "SELECT id, content FROM transcripts WHERE recording_id = ? ORDER BY created_at DESC LIMIT 1",
+        args: [recordingId],
+      });
+      if (transResult.rows.length > 0) {
+        const content = transResult.rows[0].content as string;
+        for (const k of extractR2KeysFromTranscriptContent(content)) {
+          addKey(k);
+        }
       }
     }
 
-    // ステップC: Turso 側の条件付き処理
+    for (const k of r2KeysToDelete) {
+      try {
+        await deleteFromR2(k);
+      } catch (r2Error) {
+        console.warn("R2削除スキップ:", k, r2Error);
+      }
+    }
+
+    const now = Date.now();
+
     if (isTrainingData) {
-      // ケース2: 学習データとしてテキストを残す
-      await db.execute({
-        sql: `UPDATE recordings SET
-              r2_key = NULL,
-              audio_url = '',
-              is_deleted = 0,
-              is_archived_training_data = 1,
-              updated_at = ?
-              WHERE id = ?`,
-        args: [Date.now(), recordingId],
-      });
+      if (isParent) {
+        await db.execute({
+          sql: `UPDATE recordings SET r2_key = NULL, audio_url = '', is_deleted = 0, is_archived_training_data = 1, updated_at = ? WHERE id = ?`,
+          args: [now, recordingId],
+        });
+        await db.execute({
+          sql: `UPDATE recordings SET r2_key = NULL, audio_url = '', is_deleted = 0, is_archived_training_data = 1, updated_at = ? WHERE parent_id = ?`,
+          args: [now, recordingId],
+        });
+        const transResult = await db.execute({
+          sql: "SELECT id, content FROM transcripts WHERE recording_id = ? ORDER BY created_at DESC LIMIT 1",
+          args: [recordingId],
+        });
+        if (transResult.rows.length > 0) {
+          const row = transResult.rows[0] as { id: string; content: string };
+          const stripped = stripAudioUrlFromTranscriptContent(row.content);
+          await db.execute({
+            sql: "UPDATE transcripts SET content = ? WHERE id = ?",
+            args: [stripped, row.id],
+          });
+        }
+      } else {
+        await db.execute({
+          sql: `UPDATE recordings SET r2_key = NULL, audio_url = '', is_deleted = 0, is_archived_training_data = 1, updated_at = ? WHERE id = ?`,
+          args: [now, recordingId],
+        });
+      }
     } else {
-      // ケース1: 完全に物理削除
-      await db.execute({
-        sql: "DELETE FROM recordings WHERE id = ?",
-        args: [recordingId],
-      });
+      if (isParent) {
+        await db.execute({ sql: "DELETE FROM recordings WHERE id = ?", args: [recordingId] });
+      } else {
+        await db.execute({ sql: "DELETE FROM recordings WHERE id = ?", args: [recordingId] });
+      }
     }
 
     return { success: true };

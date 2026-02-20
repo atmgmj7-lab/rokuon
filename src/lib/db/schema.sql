@@ -26,6 +26,8 @@ CREATE TABLE IF NOT EXISTS recordings (
   is_deleted INTEGER DEFAULT 0,
   -- 完全削除時に学習データとしてテキストのみ残す場合のアーカイブフラグ
   is_archived_training_data INTEGER DEFAULT 0,
+  -- 学習データ登録時の総評・指導まとめ（インライン指導テキストの箇条書き）
+  summary TEXT,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
   FOREIGN KEY (parent_id) REFERENCES recordings(id) ON DELETE CASCADE

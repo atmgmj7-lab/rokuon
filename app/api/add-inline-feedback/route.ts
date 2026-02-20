@@ -34,6 +34,7 @@ async function transcribeWithWhisper(
   formData.append("model", "whisper-1");
   formData.append("language", "ja");
   formData.append("prompt", prompt);
+  formData.append("response_format", "verbose_json");
 
   const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
     method: "POST",
@@ -79,8 +80,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const fileName = `feedback-inline-${Date.now()}.${fileExt}`;
+    const timestamp = Date.now();
+    const fileName = `feedback-inline-${timestamp}.${fileExt}`;
     const mimeType = getMimeType(fileExt);
+    const r2Key = `uploads/${fileName}`;
     const audioUrl = await uploadToR2(buffer, fileName, mimeType);
 
     const dicts = await getDictionaries();
@@ -97,6 +100,8 @@ export async function POST(request: NextRequest) {
     );
 
     const text = transcription.text?.trim() ?? "";
+    const duration = (transcription as { duration?: number }).duration ?? 0;
+    const fileSize = buffer.length;
 
     const transcriptResult = await db.execute({
       sql: "SELECT id, content FROM transcripts WHERE recording_id = ? ORDER BY created_at DESC LIMIT 1",
@@ -130,6 +135,28 @@ export async function POST(request: NextRequest) {
     await db.execute({
       sql: "UPDATE transcripts SET content = ? WHERE id = ?",
       args: [newContent, transcriptId],
+    });
+
+    // インライン指導を recordings に正式な子レコードとして追加
+    const childRecordingId = `rec_fb_inline_${timestamp}`;
+    const now = Date.now();
+    await db.execute({
+      sql: `INSERT INTO recordings (id, title, description, audio_url, r2_key, duration, file_size, recording_type, parent_id, category_id, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        childRecordingId,
+        `インライン指導_${insertIndex + 1}`,
+        text || "",
+        audioUrl,
+        r2Key,
+        Math.floor(duration),
+        fileSize,
+        "feedback",
+        recordingId,
+        null,
+        now,
+        now,
+      ],
     });
 
     return NextResponse.json({

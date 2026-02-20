@@ -155,13 +155,63 @@ export async function updateRecordingAudioCategory(
   }
 }
 
+/** トランスクリプトJSONから type: "feedback" のテキストを抽出し、箇条書きで結合 */
+function extractFeedbackSummaryFromTranscript(content: string): string {
+  let items: unknown[];
+  try {
+    const parsed = JSON.parse(content);
+    items = Array.isArray(parsed) ? parsed : [parsed];
+  } catch {
+    return "";
+  }
+  const feedbackTexts = items
+    .filter((x): x is { type: string; text?: string } => typeof x === "object" && x !== null && (x as { type?: string }).type === "feedback")
+    .map((x) => (x.text ?? "").trim())
+    .filter(Boolean);
+  if (feedbackTexts.length === 0) return "";
+  return feedbackTexts.map((t) => `・${t}`).join("\n");
+}
+
 // 録音を学習データとして登録/解除（指導音声ペア用）
 export async function setRecordingTrainingData(recordingId: string, isTraining: boolean) {
   try {
-    await db.execute({
-      sql: "UPDATE recordings SET is_training_data = ?, updated_at = ? WHERE id = ?",
-      args: [isTraining ? 1 : 0, Date.now(), recordingId],
+    const recResult = await db.execute({
+      sql: "SELECT id, parent_id FROM recordings WHERE id = ?",
+      args: [recordingId],
     });
+    if (recResult.rows.length === 0) {
+      return { success: false, error: "録音が見つかりません" };
+    }
+
+    const rec = recResult.rows[0] as { parent_id?: string | null };
+    const parentId = (rec.parent_id as string | null)?.trim() || null;
+    const targetId = parentId ?? recordingId;
+
+    let summary = "";
+    if (isTraining) {
+      const transResult = await db.execute({
+        sql: "SELECT content FROM transcripts WHERE recording_id = ? ORDER BY created_at DESC LIMIT 1",
+        args: [targetId],
+      });
+      if (transResult.rows.length > 0) {
+        const content = transResult.rows[0].content as string;
+        summary = extractFeedbackSummaryFromTranscript(content);
+      }
+    }
+
+    const now = Date.now();
+    await db.execute({
+      sql: "UPDATE recordings SET is_training_data = ?, summary = ?, updated_at = ? WHERE id = ?",
+      args: [isTraining ? 1 : 0, summary || null, now, recordingId],
+    });
+
+    if (parentId) {
+      await db.execute({
+        sql: "UPDATE recordings SET is_training_data = ?, summary = ?, updated_at = ? WHERE id = ?",
+        args: [isTraining ? 1 : 0, summary || null, now, parentId],
+      });
+    }
+
     return { success: true };
   } catch (error) {
     console.error("❌ 学習データ設定エラー:", error);
