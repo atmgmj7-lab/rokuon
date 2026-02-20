@@ -168,6 +168,9 @@ CREATE TABLE IF NOT EXISTS item_responses (
 CREATE INDEX IF NOT EXISTS idx_recordings_created_at ON recordings(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_recordings_parent_id ON recordings(parent_id);
 CREATE INDEX IF NOT EXISTS idx_recordings_type ON recordings(recording_type);
+CREATE INDEX IF NOT EXISTS idx_recordings_is_deleted ON recordings(is_deleted);
+CREATE INDEX IF NOT EXISTS idx_recordings_is_archived ON recordings(is_archived_training_data);
+CREATE INDEX IF NOT EXISTS idx_recordings_list_filter ON recordings(is_deleted, is_archived_training_data, parent_id);
 CREATE INDEX IF NOT EXISTS idx_transcripts_recording_id ON transcripts(recording_id);
 CREATE INDEX IF NOT EXISTS idx_scripts_created_at ON scripts(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_script_logs_script_id ON script_logs(script_id);

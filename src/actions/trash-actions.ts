@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { db } from "@/src/lib/db";
 import { deleteFromR2 } from "@/src/lib/r2";
 
@@ -78,6 +79,8 @@ export async function restoreRecording(recordingId: string) {
       sql: "UPDATE recordings SET is_deleted = 0, updated_at = ? WHERE id = ?",
       args: [Date.now(), recordingId],
     });
+    revalidatePath("/recordings");
+    revalidatePath("/trash");
     return { success: true };
   } catch (error) {
     console.error("❌ 復元エラー:", error);
@@ -234,6 +237,8 @@ export async function deleteRecordingPermanently(recordingId: string) {
       }
     }
 
+    revalidatePath("/recordings");
+    revalidatePath("/trash");
     return { success: true };
   } catch (error) {
     console.error("❌ 完全削除エラー:", error);
@@ -251,6 +256,8 @@ export async function emptyTrash() {
         return { success: false, error: `削除失敗: ${item.title} - ${result.error}` };
       }
     }
+    revalidatePath("/recordings");
+    revalidatePath("/trash");
     return { success: true };
   } catch (error) {
     console.error("❌ ゴミ箱空エラー:", error);

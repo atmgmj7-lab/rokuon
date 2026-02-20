@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { db } from "@/src/lib/db";
 
 /** @deprecated 使用禁止。API Route /api/upload-and-transcribe を使用してください。 */
@@ -12,11 +13,15 @@ export async function uploadFeedback(_formData: FormData, _parentRecordingId: st
   return { success: false, error: "この機能は廃止されました。ページを再読み込みしてください。" };
 }
 
+const DEFAULT_PAGE_SIZE = 20;
+
 // 録音を検索（キーワード・音声カテゴリでサーバーサイドフィルタ）※ワークスペースカテゴリは使用しない
 export async function searchRecordings(
   query?: string,
   _categoryId?: string,
-  audioCategoryId?: string
+  audioCategoryId?: string,
+  limit: number = DEFAULT_PAGE_SIZE,
+  offset: number = 0
 ) {
   try {
     let sql = `
@@ -39,7 +44,8 @@ export async function searchRecordings(
       sql += ` AND r.audio_category_id = ?`;
       args.push(audioCategoryId.trim());
     }
-    sql += ` ORDER BY r.created_at DESC`;
+    sql += ` ORDER BY r.created_at DESC LIMIT ? OFFSET ?`;
+    args.push(limit, offset);
 
     const result = await db.execute({ sql, args });
 
@@ -66,7 +72,80 @@ export async function searchRecordings(
   }
 }
 
-// すべての録音を取得（親子関係も含む）
+// 親録音の総件数を取得（ページネーション用）
+export async function getRecordingsCount(
+  query?: string,
+  audioCategoryId?: string
+): Promise<number> {
+  try {
+    let sql = `
+      SELECT COUNT(DISTINCT r.id) as cnt
+      FROM recordings r
+      LEFT JOIN transcripts t ON t.recording_id = r.id
+      WHERE r.parent_id IS NULL
+        AND (r.is_deleted = 0 OR r.is_deleted IS NULL)
+        AND (r.is_archived_training_data = 0 OR r.is_archived_training_data IS NULL)
+    `;
+    const args: (string | number)[] = [];
+
+    if (query?.trim()) {
+      sql += ` AND (r.title LIKE ? OR r.memo LIKE ? OR r.description LIKE ? OR (t.content IS NOT NULL AND t.content LIKE ?))`;
+      const q = `%${query.trim()}%`;
+      args.push(q, q, q, q);
+    }
+    if (audioCategoryId?.trim()) {
+      sql += ` AND r.audio_category_id = ?`;
+      args.push(audioCategoryId.trim());
+    }
+
+    const result = await db.execute({ sql, args });
+    const row = result.rows[0] as { cnt?: number };
+    return Number(row?.cnt ?? 0);
+  } catch (error) {
+    console.error("❌ 録音件数取得エラー:", error);
+    return 0;
+  }
+}
+
+// 指定した親IDの子録音を取得
+export async function getChildrenForParentIds(parentIds: string[]) {
+  if (parentIds.length === 0) return [];
+  try {
+    const placeholders = parentIds.map(() => "?").join(", ");
+    const result = await db.execute({
+      sql: `SELECT r.*, ac.name as audio_category_name FROM recordings r
+            LEFT JOIN audio_categories ac ON r.audio_category_id = ac.id
+            WHERE r.parent_id IN (${placeholders})
+              AND (r.is_deleted = 0 OR r.is_deleted IS NULL)
+              AND (r.is_archived_training_data = 0 OR r.is_archived_training_data IS NULL)
+            ORDER BY r.created_at ASC`,
+      args: parentIds,
+    });
+
+    return result.rows.map((row) => ({
+      id: row.id as string,
+      title: row.title as string,
+      description: row.description as string,
+      audio_url: row.audio_url as string,
+      duration: row.duration as number,
+      file_size: row.file_size as number,
+      recording_type: row.recording_type as string,
+      parent_id: row.parent_id as string | null,
+      custom_id: (row as { custom_id?: string }).custom_id as string | undefined,
+      memo: (row as { memo?: string }).memo as string | undefined,
+      audio_category_id: (row as { audio_category_id?: string }).audio_category_id as string | undefined,
+      audio_category: (row as { audio_category_name?: string }).audio_category_name as string | undefined,
+      is_training_data: !!((row as { is_training_data?: number }).is_training_data),
+      created_at: row.created_at as number,
+      updated_at: row.updated_at as number,
+    }));
+  } catch (error) {
+    console.error("❌ 子録音取得エラー:", error);
+    return [];
+  }
+}
+
+// すべての録音を取得（親子関係も含む）※後方互換・管理用
 export async function getAllRecordings() {
   try {
     const result = await db.execute(
@@ -148,6 +227,7 @@ export async function updateRecordingAudioCategory(
       sql: "UPDATE recordings SET audio_category_id = ?, updated_at = ? WHERE id = ?",
       args: [audioCategoryId?.trim() || null, Date.now(), recordingId],
     });
+    revalidatePath("/recordings");
     return { success: true };
   } catch (error) {
     console.error("❌ 音声カテゴリ更新エラー:", error);
@@ -212,6 +292,7 @@ export async function setRecordingTrainingData(recordingId: string, isTraining: 
       });
     }
 
+    revalidatePath("/recordings");
     return { success: true };
   } catch (error) {
     console.error("❌ 学習データ設定エラー:", error);
@@ -226,8 +307,7 @@ export async function updateRecordingMemo(recordingId: string, memo: string) {
       sql: "UPDATE recordings SET memo = ?, updated_at = ? WHERE id = ?",
       args: [memo || null, Date.now(), recordingId],
     });
-    // revalidatePath("/recordings");
-    // revalidatePath("/");
+    revalidatePath("/recordings");
     return { success: true };
   } catch (error) {
     console.error("❌ メモ更新エラー:", error);
@@ -242,8 +322,7 @@ export async function updateRecordingCategory(recordingId: string, category: str
       sql: "UPDATE recordings SET category = ?, updated_at = ? WHERE id = ?",
       args: [category?.trim() || null, Date.now(), recordingId],
     });
-    // revalidatePath("/recordings");
-    // revalidatePath("/");
+    revalidatePath("/recordings");
     return { success: true };
   } catch (error) {
     console.error("❌ カテゴリ更新エラー:", error);
@@ -289,8 +368,7 @@ export async function updateRecordingCustomId(recordingId: string, customId: str
       sql: "UPDATE recordings SET custom_id = ?, updated_at = ? WHERE id = ?",
       args: [customId || null, Date.now(), recordingId],
     });
-    // revalidatePath("/recordings");
-    // revalidatePath("/");
+    revalidatePath("/recordings");
     return { success: true };
   } catch (error) {
     console.error("❌ 録音更新エラー:", error);
@@ -320,6 +398,8 @@ export async function deleteRecording(recordingId: string) {
       sql: "UPDATE recordings SET is_deleted = 1, updated_at = ? WHERE id = ?",
       args: [Date.now(), recordingId],
     });
+    revalidatePath("/recordings");
+    revalidatePath("/trash");
     return { success: true };
   } catch (error) {
     console.error("❌ 録音削除エラー:", error);

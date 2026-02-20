@@ -8,6 +8,7 @@
  * Headers: x-recording-id, x-insert-after-index, x-file-ext
  */
 import { NextRequest, NextResponse } from "next/server";
+import { revalidatePath } from "next/cache";
 import { db } from "@/src/lib/db";
 import { getDictionaries } from "@/src/actions/dictionary-actions";
 import { uploadToR2 } from "@/src/lib/r2";
@@ -158,6 +159,8 @@ export async function POST(request: NextRequest) {
         now,
       ],
     });
+
+    revalidatePath("/recordings");
 
     return NextResponse.json({
       success: true,

@@ -1,29 +1,41 @@
-import { searchRecordings, getAllRecordings } from "@/src/actions/recording-actions";
+import { searchRecordings, getChildrenForParentIds, getRecordingsCount } from "@/src/actions/recording-actions";
 import { getAllAudioCategories } from "@/src/actions/audio-category-actions";
 import Link from "next/link";
 import RecordingCard from "@/src/components/recording/RecordingCard";
 import RecordingsSearchBar from "@/src/components/recording/RecordingsSearchBar";
 import AudioCategoryManager from "@/src/components/recording/AudioCategoryManager";
+import RecordingsLoadMore from "@/src/components/recording/RecordingsLoadMore";
 import { Suspense } from "react";
+
+const PAGE_SIZE = 20;
+
+export const revalidate = 60;
 
 export default async function RecordingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; acat?: string }>;
+  searchParams: Promise<{ q?: string; acat?: string; page?: string }>;
 }) {
   const params = await searchParams;
   const searchQuery = (params.q ?? "").trim();
   const audioCategoryId = (params.acat ?? "").trim();
+  const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
+  const offset = (page - 1) * PAGE_SIZE;
 
-  const [parentRecordings, allRecordings, audioCategories] = await Promise.all([
-    searchRecordings(searchQuery || undefined, undefined, audioCategoryId || undefined),
-    getAllRecordings(),
+  const [parentRecordings, totalCount, audioCategories] = await Promise.all([
+    searchRecordings(searchQuery || undefined, undefined, audioCategoryId || undefined, PAGE_SIZE, offset),
+    getRecordingsCount(searchQuery || undefined, audioCategoryId || undefined),
     getAllAudioCategories(),
   ]);
 
+  const children =
+    parentRecordings.length > 0
+      ? await getChildrenForParentIds(parentRecordings.map((r) => r.id))
+      : [];
+
   const filteredParentIds = new Set(parentRecordings.map((r) => r.id));
-  const childrenMap = new Map<string, typeof allRecordings>();
-  allRecordings
+  const childrenMap = new Map<string, typeof children>();
+  children
     .filter((r) => r.parent_id && filteredParentIds.has(r.parent_id))
     .forEach((child) => {
       if (!childrenMap.has(child.parent_id!)) {
@@ -32,7 +44,7 @@ export default async function RecordingsPage({
       childrenMap.get(child.parent_id!)!.push(child);
     });
 
-  const hasRecordings = allRecordings.filter((r) => !r.parent_id).length > 0;
+  const hasRecordings = totalCount > 0;
   const hasFilteredResults = parentRecordings.length > 0;
 
   return (
@@ -108,19 +120,28 @@ export default async function RecordingsPage({
             </Link>
           </div>
         ) : (
-          <div className="space-y-6">
-            {parentRecordings.map((recording) => {
-              const children = childrenMap.get(recording.id) || [];
-              return (
-                <RecordingCard
-                  key={recording.id}
-                  recording={recording}
-                  children={children}
-                  audioCategories={audioCategories}
-                />
-              );
-            })}
-          </div>
+          <>
+            <div className="space-y-6">
+              {parentRecordings.map((recording) => {
+                const childList = childrenMap.get(recording.id) || [];
+                return (
+                  <RecordingCard
+                    key={recording.id}
+                    recording={recording}
+                    children={childList}
+                    audioCategories={audioCategories}
+                  />
+                );
+              })}
+            </div>
+            <RecordingsLoadMore
+              currentPage={page}
+              totalCount={totalCount}
+              pageSize={PAGE_SIZE}
+              searchQuery={searchQuery}
+              audioCategoryId={audioCategoryId}
+            />
+          </>
         )}
       </div>
     </div>

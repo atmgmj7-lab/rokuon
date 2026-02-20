@@ -25,14 +25,12 @@ export default function RecordingsSearchBar({
 
   const applyFilters = useCallback(
     (q: string, acatId: string) => {
-      const params = new URLSearchParams(searchParams.toString());
+      const params = new URLSearchParams();
       if (q.trim()) params.set("q", q.trim());
-      else params.delete("q");
       if (acatId) params.set("acat", acatId);
-      else params.delete("acat");
       router.push(`/recordings${params.toString() ? `?${params.toString()}` : ""}`);
     },
-    [router, searchParams]
+    [router]
   );
 
   const handleSearchSubmit = (e: React.FormEvent) => {

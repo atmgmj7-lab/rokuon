@@ -8,7 +8,7 @@
  * Headers: x-file-name, x-title, x-description
  */
 import { NextRequest, NextResponse } from "next/server";
-// import { revalidatePath } from "next/cache";
+import { revalidatePath } from "next/cache";
 import { db } from "@/src/lib/db";
 import { getDictionaries } from "@/src/actions/dictionary-actions";
 import { getCorrectionTerms } from "@/src/actions/correction-actions";
@@ -187,7 +187,8 @@ export async function POST(request: NextRequest) {
       args: [transcriptId, recordingId, contentToSave, contentToSave, "ja", now],
     });
 
-    // revalidatePath("/");
+    revalidatePath("/");
+    revalidatePath("/recordings");
 
     return NextResponse.json({
       success: true,
