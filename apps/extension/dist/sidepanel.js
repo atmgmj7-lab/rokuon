@@ -7158,7 +7158,7 @@ function Login({ onLoginSuccess }) {
     ] })
   ] }) });
 }
-const DEFAULT_ENDPOINT = "https://hybrid-scouter-api.onrender.com";
+const DEFAULT_ENDPOINT = "https://rokuon.onrender.com";
 const APP_BASE_URL = "https://rokuon-ivory.vercel.app";
 const DEFAULT_INDUSTRY = "屋根工事";
 function cleanEndpointUrl(raw) {
@@ -7294,11 +7294,12 @@ function App() {
       const res = await fetch(url2, { method: "GET" });
       if (!res.ok) {
         const body = await res.text().catch(() => "");
+        const bodyPreview = res.status === 500 ? body : body.slice(0, 300);
         console.error("[スカウター] hearing API 取得失敗:", {
           url: url2,
           status: res.status,
           statusText: res.statusText,
-          body: body.slice(0, 300)
+          body: bodyPreview
         });
         return null;
       }
@@ -7321,11 +7322,12 @@ function App() {
       const res = await fetch(url2, { method: "GET" });
       if (!res.ok) {
         const body = await res.text().catch(() => "");
+        const bodyPreview = res.status === 500 ? body : body.slice(0, 300);
         console.error("[スカウター] scripts API 取得失敗:", {
           url: url2,
           status: res.status,
           statusText: res.statusText,
-          body: body.slice(0, 300)
+          body: bodyPreview
         });
         return { data: null, status: "offline" };
       }

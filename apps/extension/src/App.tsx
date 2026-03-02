@@ -8,7 +8,7 @@ import Login from "./components/Login";
 const DEFAULT_ENDPOINT =
   import.meta.env.VITE_API_ENDPOINT ||
   import.meta.env.VITE_DEFAULT_ENDPOINT ||
-  "https://hybrid-scouter-api.onrender.com";
+  "https://rokuon.onrender.com";
 
 // 録音アプリ（ワークスペース）のベースURL
 const APP_BASE_URL = import.meta.env.VITE_APP_BASE_URL || "http://127.0.0.1:3002";
