@@ -1,9 +1,11 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { updateTranscriptContent, updateRecordingMemo, saveCorrectedTranscript, setTranscriptLearningPending } from "@/src/actions/recording-actions";
 import { deleteInlineVoiceFeedback } from "@/src/actions/feedback-actions";
 import { saveTranscriptCorrections } from "@/src/actions/correction-actions";
+import { chunkTextBySentences, joinChunks } from "@/src/lib/transcript-chunk";
 
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
@@ -82,6 +84,221 @@ function hasStartEndTime(
   );
 }
 
+/** 文末かどうか（。！？で終わる） */
+function endsAtSentenceBoundary(text: string): boolean {
+  return /[。！？]\s*$/.test(text.trim());
+}
+
+/**
+ * セグメントを30秒＋文末でマージする
+ * - 合計時間が30秒以上になるまで結合
+ * - 30秒超えた時点で文末（。！？）なら区切り、そうでなければ文末まで結合
+ */
+function mergeSegmentsInto30SecChunks(items: TranscriptItem[]): TranscriptItem[] {
+  const result: TranscriptItem[] = [];
+  let i = 0;
+
+  while (i < items.length) {
+    const item = items[i];
+    if (item.type === "feedback") {
+      result.push(item);
+      i++;
+      continue;
+    }
+    if (!hasStartEndTime(item)) {
+      result.push(item);
+      i++;
+      continue;
+    }
+
+    const chunks: (TranscriptItem & { startTime: number; endTime: number })[] = [item];
+    let combinedText = item.text;
+    let chunkStart = item.startTime;
+    let chunkEnd = item.endTime;
+    i++;
+
+    while (i < items.length) {
+      const next = items[i];
+      if (next.type === "feedback") break;
+      if (!hasStartEndTime(next)) break;
+
+      const duration = chunkEnd - chunkStart;
+      const atSentenceEnd = endsAtSentenceBoundary(combinedText);
+
+      if (duration >= 30 && atSentenceEnd) {
+        break;
+      }
+
+      chunks.push(next);
+      combinedText += next.text;
+      chunkEnd = next.endTime;
+      i++;
+
+      if (chunkEnd - chunkStart >= 30 && endsAtSentenceBoundary(combinedText)) {
+        break;
+      }
+    }
+
+    if (chunks.length === 1) {
+      result.push(chunks[0]);
+    } else {
+      const first = chunks[0];
+      const merged: TranscriptItem =
+        first.type === "dialogue"
+          ? {
+              type: "dialogue",
+              speaker: first.speaker,
+              text: chunks.map((c) => c.text).join(""),
+              startTime: chunkStart,
+              endTime: chunkEnd,
+            }
+          : {
+              type: "paragraph",
+              text: chunks.map((c) => c.text).join(""),
+              startTime: chunkStart,
+              endTime: chunkEnd,
+            };
+      result.push(merged);
+    }
+  }
+
+  return result;
+}
+
+// プレーンテキストの5文チャンク表示 + インライン編集
+function PlainTextChunkedDisplay({
+  content,
+  transcriptId,
+  recordingId,
+  learningPending,
+  canEdit = true,
+  onSaved,
+  onSetLearning,
+}: {
+  content: string;
+  transcriptId: string;
+  recordingId?: string;
+  learningPending: boolean;
+  canEdit?: boolean;
+  onSaved?: (newContent: string) => void;
+  onSetLearning?: () => void;
+}) {
+  const router = useRouter();
+  const chunks = chunkTextBySentences(content, 5);
+  const [editingChunkIndex, setEditingChunkIndex] = useState<number | null>(null);
+  const [editText, setEditText] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleStartEdit = (index: number) => {
+    setEditingChunkIndex(index);
+    setEditText(chunks[index] ?? "");
+  };
+
+  const handleCancelEdit = () => {
+    setEditingChunkIndex(null);
+    setEditText("");
+  };
+
+  const handleSaveChunk = async () => {
+    if (editingChunkIndex === null) return;
+    setIsSaving(true);
+    const newChunks = [...chunks];
+    newChunks[editingChunkIndex] = editText.trim();
+    const newContent = joinChunks(newChunks);
+    if (recordingId && content.trim() !== newContent.trim()) {
+      await saveTranscriptCorrections(recordingId, transcriptId, [
+        { original_text: content, corrected_text: newContent },
+      ]);
+    }
+    const result = await saveCorrectedTranscript(transcriptId, newContent);
+    setIsSaving(false);
+    setEditingChunkIndex(null);
+    setEditText("");
+    if (result.success) {
+      onSaved?.(newContent);
+      router.refresh();
+    } else {
+      alert(`保存に失敗しました: ${result.error}`);
+    }
+  };
+
+  return (
+    <div>
+      {canEdit && (
+      <div className="mb-2 flex flex-wrap gap-2">
+        <button
+          onClick={onSetLearning}
+          disabled={learningPending}
+          className={`px-3 py-1.5 rounded-xl text-sm transition-all duration-200 ${
+            learningPending
+              ? "bg-stone-100 text-stone-400 cursor-not-allowed"
+              : "bg-[#4A463F] text-white hover:bg-[#3E3A34]"
+          }`}
+        >
+          {learningPending ? "学習待ち" : "この内容を学習に使う"}
+        </button>
+      </div>
+      )}
+      <div className="space-y-4">
+        {chunks.map((chunk, idx) => (
+          <div
+            key={idx}
+            className="group relative p-4 rounded-xl border border-[#EBE8E3] bg-white shadow-sm shadow-stone-200/50 hover:shadow-md transition-all duration-200"
+          >
+            {canEdit && editingChunkIndex === idx ? (
+              <div className="space-y-3">
+                <textarea
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  rows={5}
+                  className="w-full px-3 py-2 border border-[#EBE8E3] rounded-xl text-sm text-[#36332E] bg-white focus:ring-2 focus:ring-[#C87A55]/30 focus:border-[#C87A55]"
+                  placeholder="テキストを編集..."
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleSaveChunk}
+                    disabled={isSaving}
+                    className="px-4 py-2 bg-[#C87A55] hover:bg-[#B56A45] text-white rounded-xl text-sm font-medium disabled:opacity-70"
+                  >
+                    {isSaving ? "保存中..." : "保存"}
+                  </button>
+                  <button
+                    onClick={handleCancelEdit}
+                    disabled={isSaving}
+                    className="px-4 py-2 bg-white border border-[#EBE8E3] text-[#36332E] hover:bg-[#FCFAF8] rounded-xl text-sm font-medium"
+                  >
+                    キャンセル
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <>
+                {canEdit && (
+                <button
+                  type="button"
+                  onClick={() => handleStartEdit(idx)}
+                  className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1.5 text-stone-500 hover:text-[#C87A55] hover:bg-[#FCF7F4] rounded-lg border border-stone-200 hover:border-[#C87A55]/50 text-xs font-medium transition-all"
+                  title="編集"
+                >
+                  <span>✏️</span>
+                  <span>編集</span>
+                </button>
+                )}
+                <p
+                  className={`text-[#36332E] whitespace-pre-wrap leading-[2.2] tracking-[0.03em] font-medium ${canEdit ? "pr-24 cursor-pointer" : ""}`}
+                  onClick={canEdit ? () => handleStartEdit(idx) : undefined}
+                >
+                  {chunk}
+                </p>
+              </>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 interface TranscriptRichDisplayProps {
   transcriptId: string;
   content: string;
@@ -89,6 +306,7 @@ interface TranscriptRichDisplayProps {
   audioUrl?: string;
   memo?: string;
   learningPending?: boolean;
+  canEdit?: boolean;
   onSaved?: (newContent: string) => void;
   onMemoSaved?: (memo: string) => void;
   onLearningSet?: () => void;
@@ -101,10 +319,12 @@ export default function TranscriptRichDisplay({
   audioUrl,
   memo = "",
   learningPending = false,
+  canEdit = true,
   onSaved,
   onMemoSaved,
   onLearningSet,
 }: TranscriptRichDisplayProps) {
+  const router = useRouter();
   const audioRef = useRef<HTMLAudioElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -121,8 +341,11 @@ export default function TranscriptRichDisplay({
   const [editItems, setEditItems] = useState<TranscriptItem[]>([]);
   const [editRawText, setEditRawText] = useState("");
   const [isLearningPending, setIsLearningPending] = useState(learningPending);
+  const [inlineEditingIndex, setInlineEditingIndex] = useState<number | null>(null);
+  const [inlineEditText, setInlineEditText] = useState("");
 
-  const items = parseTranscriptItems(content);
+  const rawItems = parseTranscriptItems(content);
+  const items = mergeSegmentsInto30SecChunks(rawItems);
   const hasStructuredItems = items.length > 0;
 
   const handleSpeedChange = (rate: number) => {
@@ -130,10 +353,22 @@ export default function TranscriptRichDisplay({
     if (audioRef.current) audioRef.current.playbackRate = rate;
   };
 
+  // メディアストリームのクリーンアップ
   useEffect(() => {
     return () => {
       mediaStreamRef.current?.getTracks().forEach((t) => t.stop());
       mediaStreamRef.current = null;
+    };
+  }, []);
+
+  // アンマウント時に音声を停止（バックグラウンド再生バグ対策）
+  useEffect(() => {
+    return () => {
+      const audio = audioRef.current;
+      if (audio) {
+        audio.pause();
+        audio.currentTime = 0;
+      }
     };
   }, []);
 
@@ -243,6 +478,7 @@ export default function TranscriptRichDisplay({
     if (result.success) {
       onSaved?.(jsonStr);
       setIsEditing(false);
+      router.refresh();
       alert("保存しました");
     } else {
       alert(`保存に失敗しました: ${result.error}`);
@@ -352,6 +588,31 @@ export default function TranscriptRichDisplay({
     });
   };
 
+  const handleInlineSave = async () => {
+    if (inlineEditingIndex === null) return;
+    const newItems = items.map((item, i) =>
+      i === inlineEditingIndex ? { ...item, text: inlineEditText } : item
+    );
+    const jsonStr = JSON.stringify(newItems);
+    if (recordingId) {
+      const origItem = items[inlineEditingIndex];
+      if (origItem && origItem.text !== inlineEditText) {
+        await saveTranscriptCorrections(recordingId, transcriptId, [
+          { original_text: origItem.text, corrected_text: inlineEditText },
+        ]);
+      }
+    }
+    const result = await saveCorrectedTranscript(transcriptId, jsonStr);
+    setInlineEditingIndex(null);
+    setInlineEditText("");
+    if (result.success) {
+      onSaved?.(jsonStr);
+      router.refresh();
+    } else {
+      alert(`保存に失敗しました: ${result.error}`);
+    }
+  };
+
   // 編集モード（JSON配列）
   if (isEditing && hasStructuredItems) {
     const displayEditItems = editItems.length > 0 ? editItems : items;
@@ -433,6 +694,7 @@ export default function TranscriptRichDisplay({
               if (result.success) {
                 onSaved?.(editRawText);
                 setIsEditing(false);
+                router.refresh();
                 alert("保存しました");
               } else {
                 alert(`保存に失敗しました: ${result.error}`);
@@ -453,7 +715,7 @@ export default function TranscriptRichDisplay({
     );
   }
 
-  // 表示モード（プレーンテキスト）— JSON配列の場合はカラオケUIへ
+  // 表示モード（プレーンテキスト）— 3文チャンク化 + インライン編集
   if (
     !hasStructuredItems ||
     (items.length === 1 &&
@@ -462,30 +724,15 @@ export default function TranscriptRichDisplay({
       !items[0].text.includes("{"))
   ) {
     return (
-      <div>
-        <div className="mb-2 flex flex-wrap gap-2">
-          <button
-            onClick={handleStartEdit}
-            className="px-3 py-1.5 bg-white border border-[#EBE8E3] text-[#36332E] hover:bg-[#FCFAF8] hover:shadow-sm hover:shadow-stone-200/50 hover:-translate-y-px rounded-xl text-sm transition-all duration-200"
-          >
-            編集
-          </button>
-          <button
-            onClick={handleSetLearning}
-            disabled={isLearningPending}
-            className={`px-3 py-1.5 rounded-xl text-sm transition-all duration-200 ${
-              isLearningPending
-                ? "bg-stone-100 text-stone-400 cursor-not-allowed"
-                : "bg-[#4A463F] text-white hover:bg-[#3E3A34]"
-            }`}
-          >
-            {isLearningPending ? "学習待ち" : "この内容を学習に使う"}
-          </button>
-        </div>
-        <p className="text-[#36332E] whitespace-pre-wrap leading-[2.2] tracking-[0.03em] font-medium">
-          {content}
-        </p>
-      </div>
+      <PlainTextChunkedDisplay
+        content={content}
+        transcriptId={transcriptId}
+        recordingId={recordingId}
+        learningPending={isLearningPending}
+        canEdit={canEdit}
+        onSaved={onSaved}
+        onSetLearning={handleSetLearning}
+      />
     );
   }
 
@@ -542,18 +789,21 @@ export default function TranscriptRichDisplay({
           </div>
         )}
         <div className="mb-3 flex flex-wrap gap-2">
+          {canEdit && (
           <button
             onClick={handleStartEdit}
             className="px-3 py-1.5 bg-white border border-[#EBE8E3] text-[#36332E] hover:bg-[#FCFAF8] hover:shadow-sm hover:shadow-stone-200/50 hover:-translate-y-px rounded-xl text-sm transition-all duration-200"
           >
             編集
           </button>
+          )}
           <button
             onClick={handleCopyText}
             className="px-3 py-1.5 bg-white border border-[#EBE8E3] text-[#36332E] hover:bg-[#FCFAF8] hover:shadow-sm hover:shadow-stone-200/50 hover:-translate-y-px rounded-xl text-sm transition-all duration-200"
           >
             {isCopied ? "コピーしました" : "テキストをコピー"}
           </button>
+          {canEdit && (
           <button
             onClick={handleSetLearning}
             disabled={isLearningPending}
@@ -565,6 +815,7 @@ export default function TranscriptRichDisplay({
           >
             {isLearningPending ? "学習待ち" : "この内容を学習に使う"}
           </button>
+          )}
         </div>
         <div>
         {items.map((item, idx) =>
@@ -573,7 +824,7 @@ export default function TranscriptRichDisplay({
               key={idx}
               className="relative mb-8 mt-2 ml-12 group animate-slide-up-fade-in"
             >
-              {recordingId && (
+              {canEdit && recordingId && (
                 <button
                   type="button"
                   onClick={() => handleDeleteFeedback(idx)}
@@ -625,74 +876,126 @@ export default function TranscriptRichDisplay({
             <div
               key={idx}
               id={`transcript-item-${idx}`}
-              className={`group relative cursor-pointer transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)] rounded-xl px-6 py-5 mb-4 last:mb-0 ${
-                (() => {
-                  const isActive =
-                    !!audioUrl &&
-                    item.startTime !== undefined &&
-                    item.endTime !== undefined &&
-                    currentTime >= item.startTime &&
-                    currentTime <= item.endTime;
-                  return isActive
-                    ? "bg-gradient-to-r from-[#FCF7F4] to-white border border-[#EBE8E3] border-l-4 border-l-[#C87A55] shadow-md shadow-stone-200/50"
-                    : "bg-white border border-[#EBE8E3] border-l-4 border-l-transparent rounded-xl shadow-sm shadow-stone-200/50 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 ease-out";
-                })()
+              className={`group relative transition-all duration-300 ease-[cubic-bezier(0.25,0.1,0.25,1)] rounded-xl px-6 py-5 mb-4 last:mb-0 ${
+                inlineEditingIndex === idx
+                  ? "bg-white border border-[#EBE8E3] border-l-4 border-l-[#C87A55] shadow-md"
+                  : (() => {
+                      const isActive =
+                        !!audioUrl &&
+                        item.startTime !== undefined &&
+                        item.endTime !== undefined &&
+                        currentTime >= item.startTime &&
+                        currentTime <= item.endTime;
+                      return isActive
+                        ? "bg-gradient-to-r from-[#FCF7F4] to-white border border-[#EBE8E3] border-l-4 border-l-[#C87A55] shadow-md shadow-stone-200/50 cursor-pointer"
+                        : "bg-white border border-[#EBE8E3] border-l-4 border-l-transparent rounded-xl shadow-sm shadow-stone-200/50 hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 ease-out cursor-pointer";
+                    })()
               }`}
               onClick={() => {
+                if (inlineEditingIndex === idx) return;
                 if (audioRef.current && item.startTime !== undefined) {
                   const targetTime = Number(item.startTime);
                   if (!Number.isNaN(targetTime)) {
                     audioRef.current.currentTime = targetTime;
                     audioRef.current.play();
-                    console.log("【デバッグ】段落クリック再生", {
-                      index: idx,
-                      startTime: targetTime,
-                      audioCurrentTime: audioRef.current.currentTime,
-                    });
                   }
                 }
               }}
             >
-              {recordingId && (
+              {canEdit && inlineEditingIndex === idx ? (
+                <div className="space-y-3">
+                  <textarea
+                    value={inlineEditText}
+                    onChange={(e) => setInlineEditText(e.target.value)}
+                    rows={3}
+                    className="w-full px-3 py-2 border border-[#EBE8E3] rounded-xl text-sm text-[#36332E] bg-white focus:ring-2 focus:ring-[#C87A55]/30 focus:border-[#C87A55]"
+                    onClick={(e) => e.stopPropagation()}
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleInlineSave();
+                      }}
+                      className="px-4 py-2 bg-[#C87A55] hover:bg-[#B56A45] text-white rounded-xl text-sm font-medium"
+                    >
+                      保存
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setInlineEditingIndex(null);
+                        setInlineEditText("");
+                      }}
+                      className="px-4 py-2 bg-white border border-[#EBE8E3] text-[#36332E] hover:bg-[#FCFAF8] rounded-xl text-sm font-medium"
+                    >
+                      キャンセル
+                    </button>
+                  </div>
+                </div>
+              ) : (
                 <>
-                  {uploadingForIndex === idx && isUploading ? (
-                    <span className="absolute top-2 right-2 inline-flex items-center gap-1 text-sm text-[#9E9A95]">
-                      <span className="animate-spin h-4 w-4 border-2 border-[#EBE8E3] border-t-[#C87A55] rounded-full" />
-                      保存中...
-                    </span>
-                  ) : recordingIndex === idx ? (
+                  {canEdit && (
+                  <div className="absolute top-2 right-2 flex items-center gap-2">
                     <button
                       type="button"
-                      className="absolute top-2 right-2 opacity-100 bg-[#C87A55] text-white px-3 py-1 rounded-xl text-sm font-medium hover:bg-[#B56A45] animate-pulse"
+                      className="flex items-center gap-1 px-2 py-1.5 text-stone-500 hover:text-[#C87A55] hover:bg-[#FCF7F4] rounded-lg border border-stone-200 hover:border-[#C87A55]/50 text-xs font-medium transition-all"
+                      title="編集"
                       onClick={(e) => {
                         e.stopPropagation();
-                        stopRecording(idx);
+                        setInlineEditingIndex(idx);
+                        setInlineEditText(item.text);
                       }}
                     >
-                      録音停止
+                      <span>✏️</span>
+                      <span>編集</span>
                     </button>
-                  ) : (
-                    <button
-                      type="button"
-                      className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-all duration-200 bg-white border border-[#EBE8E3] text-[#36332E] px-3 py-1 rounded-xl text-sm font-medium hover:bg-[#FCFAF8] hover:shadow-sm hover:shadow-stone-200/50 hover:-translate-y-px"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        startRecording(idx);
-                      }}
-                    >
-                      音声で指導
-                    </button>
+                    {recordingId && (
+                      <>
+                        {uploadingForIndex === idx && isUploading ? (
+                          <span className="inline-flex items-center gap-1 text-sm text-[#9E9A95]">
+                            <span className="animate-spin h-4 w-4 border-2 border-[#EBE8E3] border-t-[#C87A55] rounded-full" />
+                            保存中...
+                          </span>
+                        ) : recordingIndex === idx ? (
+                          <button
+                            type="button"
+                            className="bg-[#C87A55] text-white px-3 py-1 rounded-xl text-sm font-medium hover:bg-[#B56A45] animate-pulse"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              stopRecording(idx);
+                            }}
+                          >
+                            録音停止
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="bg-white border border-[#EBE8E3] text-[#36332E] px-3 py-1 rounded-xl text-sm font-medium hover:bg-[#FCFAF8] hover:shadow-sm hover:shadow-stone-200/50 hover:-translate-y-px"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              startRecording(idx);
+                            }}
+                          >
+                            音声で指導
+                          </button>
+                        )}
+                      </>
+                    )}
+                  </div>
                   )}
+                  {"startTime" in item && "endTime" in item && item.startTime != null && item.endTime != null && (
+                    <span className="inline-block font-mono text-[11px] tracking-widest text-[#9E9A95] mb-1 select-none">
+                      {formatTime(item.startTime)} - {formatTime(item.endTime)}
+                    </span>
+                  )}
+                  <p className="text-[#36332E] text-base leading-[2.2] tracking-[0.03em] font-medium whitespace-pre-wrap pr-24">
+                    {item.text}
+                  </p>
                 </>
               )}
-              {"startTime" in item && "endTime" in item && item.startTime != null && item.endTime != null && (
-                <span className="inline-block font-mono text-[11px] tracking-widest text-[#9E9A95] mb-1 select-none">
-                  {formatTime(item.startTime)} - {formatTime(item.endTime)}
-                </span>
-              )}
-              <p className="text-[#36332E] text-base leading-[2.2] tracking-[0.03em] font-medium whitespace-pre-wrap pr-24">
-                {item.text}
-              </p>
             </div>
           )
         )}
@@ -707,14 +1010,17 @@ export default function TranscriptRichDisplay({
             value={noteText}
             onChange={(e) => setNoteText(e.target.value)}
             placeholder="商談の重要ポイントや、抜粋したいトークをここにメモできます..."
-            className="w-full h-64 p-3 border border-[#EBE8E3] rounded-xl text-sm focus:ring-2 focus:ring-[#C87A55]/30 focus:border-[#C87A55] resize-y leading-[2.2] tracking-[0.03em] text-[#36332E]"
+            readOnly={!canEdit}
+            className={`w-full h-64 p-3 border border-[#EBE8E3] rounded-xl text-sm focus:ring-2 focus:ring-[#C87A55]/30 focus:border-[#C87A55] resize-y leading-[2.2] tracking-[0.03em] text-[#36332E] ${!canEdit ? "bg-stone-50 cursor-default" : ""}`}
           />
+          {canEdit && (
           <button
             onClick={handleSaveNote}
             className="w-full mt-3 py-2 bg-white border border-[#EBE8E3] text-[#36332E] hover:bg-[#FCFAF8] hover:shadow-sm hover:shadow-stone-200/50 hover:-translate-y-px rounded-xl text-sm font-medium transition-all duration-200"
           >
             メモを保存
           </button>
+          )}
         </div>
       </div>
     </div>

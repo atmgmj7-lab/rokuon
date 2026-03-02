@@ -1,0 +1,13 @@
+.venv
+__pycache__
+*.pyc
+*.pyo
+.env
+.env.local
+*.log
+.git
+.gitignore
+check_db.py
+check_mapping.py
+fix_folders.py
+revert_folders.py

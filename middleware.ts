@@ -1,54 +1,70 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
+import { getTokenFromRequest } from "@/src/lib/auth-request";
+import { verifyToken } from "@/src/lib/auth";
 
-export function middleware(request: NextRequest) {
-  const authUser = process.env.BASIC_AUTH_USER;
-  const authPassword = process.env.BASIC_AUTH_PASSWORD;
+/** 認証不要でアクセス可能なパス */
+const PUBLIC_PATHS = ["/login", "/api/auth/ext-login"];
 
-  // 環境変数が未設定の場合は認証をスキップ（開発時など）
-  if (!authUser || !authPassword) {
-    return NextResponse.next();
-  }
+function isPublicPath(pathname: string): boolean {
+  return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+}
 
-  const authHeader = request.headers.get("authorization");
+function isApiPath(pathname: string): boolean {
+  return pathname.startsWith("/api/");
+}
 
-  if (!authHeader || !authHeader.startsWith("Basic ")) {
-    return new NextResponse("Authentication required", {
-      status: 401,
+export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // CORS プリフライト: OPTIONS は常に許可（拡張機能用）
+  if (request.method === "OPTIONS") {
+    return new NextResponse(null, {
+      status: 204,
       headers: {
-        "WWW-Authenticate": 'Basic realm="Secure Area", charset="UTF-8"',
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Max-Age": "86400",
       },
     });
   }
 
-  try {
-    const base64Credentials = authHeader.slice(6);
-    const credentials = atob(base64Credentials);
-    const colonIndex = credentials.indexOf(":");
-    const user = colonIndex >= 0 ? credentials.slice(0, colonIndex) : "";
-    const password = colonIndex >= 0 ? credentials.slice(colonIndex + 1) : "";
-
-    if (user === authUser && password === authPassword) {
-      return NextResponse.next();
-    }
-  } catch {
-    // デコード失敗時は認証失敗として扱う
+  // 公開パスは常に許可
+  if (isPublicPath(pathname)) {
+    return NextResponse.next();
   }
 
-  return new NextResponse("Authentication required", {
-    status: 401,
-    headers: {
-      "WWW-Authenticate": 'Basic realm="Secure Area", charset="UTF-8"',
-    },
-  });
+  // JWT 取得: Cookie (scouter_session) または Authorization: Bearer <token>
+  const token = await getTokenFromRequest(request);
+  if (!token) {
+    if (isApiPath(pathname)) {
+      return NextResponse.json(
+        { success: false, error: "認証が必要です" },
+        { status: 401 }
+      );
+    }
+    const loginUrl = new URL("/login", request.url);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  const payload = await verifyToken(token);
+  if (!payload) {
+    if (isApiPath(pathname)) {
+      return NextResponse.json(
+        { success: false, error: "セッションが無効です" },
+        { status: 401 }
+      );
+    }
+    const loginUrl = new URL("/login", request.url);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  return NextResponse.next();
 }
 
 export const config = {
   matcher: [
-    /*
-     * 全ルートを保護（社内ツールのため全ページロック）
-     * _next/static, _next/image, favicon.ico は除外（Next.jsの静的アセット）
-     */
-    "/((?!_next/static|_next/image|favicon.ico).*)",
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:ico|png|jpg|jpeg|gif|webp|svg)$).*)",
   ],
 };

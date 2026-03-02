@@ -2,6 +2,52 @@
 
 import { useState, useRef } from "react";
 
+// ローカル開発: 127.0.0.1 の方が安定するためデフォルトに使用
+// 本番: NEXT_PUBLIC_API_URL に Render 等のバックエンド URL を設定
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8765";
+
+function buildRawTranscript(
+  segments: { start?: number; end?: number; text?: string }[],
+  fallbackText: string,
+  duration: number
+): string {
+  if (segments?.length > 0) {
+    const lines = segments
+      .map(
+        (s) =>
+          `[${(s.start ?? 0).toFixed(1)}s - ${(s.end ?? 0).toFixed(1)}s] ${(s.text ?? "").trim()}`
+      )
+      .filter((line) => {
+        const afterBracket = line.indexOf("] ");
+        return afterBracket >= 0 && line.slice(afterBracket + 2).trim().length > 0;
+      });
+    const text = lines.join("\n");
+    return text.trim() || fallbackText;
+  }
+  if (fallbackText && duration > 0) {
+    return `[0.0s - ${duration.toFixed(1)}s] ${fallbackText}`;
+  }
+  return fallbackText;
+}
+
+function getExtension(filename: string): string {
+  const lastDot = filename.lastIndexOf(".");
+  return lastDot >= 0 ? filename.slice(lastDot) : ".webm";
+}
+
+function getMimeType(extension: string): string {
+  const mimeTypes: Record<string, string> = {
+    ".mp3": "audio/mpeg",
+    ".mp4": "audio/mp4",
+    ".m4a": "audio/m4a",
+    ".wav": "audio/wav",
+    ".webm": "audio/webm",
+    ".mpeg": "audio/mpeg",
+    ".mpga": "audio/mpeg",
+  };
+  return mimeTypes[extension.toLowerCase()] || "audio/webm";
+}
+
 function SubmitButton({ isLoading }: { isLoading: boolean }) {
   return (
     <button
@@ -76,48 +122,160 @@ export default function AudioUploader() {
     setIsLoading(true);
     setResult(null);
 
-    try {
-      const form = e.currentTarget;
-      const formData = new FormData(form);
-      const title = (formData.get("title") as string) || "";
-      const description = (formData.get("description") as string) || "";
+    const form = e.currentTarget;
+    const formData = new FormData(form);
+    const title = (formData.get("title") as string) || "";
+    const description = (formData.get("description") as string) || "";
+    const fileSize = selectedFile.size;
 
-      // FormData を経由せず、生バイナリで API Route に送信（Vercel ENOENT 回避）
-      // 日本語ファイル名対応: headers は ISO-8859-1 のみ許可のため encodeURIComponent でエンコード
-      const res = await fetch("/api/upload-and-transcribe", {
+    try {
+      const base = API_BASE.replace(/\/$/, "");
+      const transcribeUrl = `${base}/transcribe`;
+      const transcribeRes = await fetch(transcribeUrl, {
         method: "POST",
-        body: selectedFile,
-        headers: {
-          "x-file-name": encodeURIComponent(selectedFile.name),
-          "x-title": encodeURIComponent(title),
-          "x-description": encodeURIComponent(description),
-        },
+        body: (() => {
+          const fd = new FormData();
+          fd.append("file", selectedFile, selectedFile.name);
+          return fd;
+        })(),
       });
 
-      const response = await res.json();
-      if (!res.ok) {
+      if (!transcribeRes.ok) {
+        const errText = await transcribeRes.text();
+        let errMsg = errText;
+        try {
+          const errJson = JSON.parse(errText) as { detail?: string; error?: string };
+          errMsg = errJson.detail ?? errJson.error ?? errText;
+        } catch {
+          // ignore
+        }
+        console.error("[AudioUploader] 文字起こしエラー", {
+          url: transcribeUrl,
+          status: transcribeRes.status,
+          statusText: transcribeRes.statusText,
+          body: errText,
+        });
         setResult({
           success: false,
-          message: `エラー: ${response.error ?? res.statusText}`,
+          message: `文字起こしエラー: ${errMsg}`,
         });
         return;
       }
 
-      if (response.success) {
-        setResult({
-          success: true,
-          message: "アップロードと文字起こしが完了しました",
-          transcript: response.data?.transcript,
+      const transcribeData = (await transcribeRes.json()) as {
+        success?: boolean;
+        text?: string;
+        segments?: { start?: number; end?: number; text?: string }[];
+        duration?: number;
+      };
+      const duration = transcribeData.duration ?? 0;
+      const rawTranscript = buildRawTranscript(
+        transcribeData.segments ?? [],
+        transcribeData.text ?? "",
+        duration
+      );
+
+      const ext = getExtension(selectedFile.name);
+      const contentType = getMimeType(ext);
+
+      const presignedRes = await fetch("/api/upload-presigned", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filename: selectedFile.name,
+          contentType: selectedFile.type || contentType,
+        }),
+      });
+      const presignedData = (await presignedRes.json()) as {
+        success?: boolean;
+        putUrl?: string;
+        r2Key?: string;
+        audioUrl?: string;
+        error?: string;
+      };
+      if (!presignedRes.ok || !presignedData.putUrl) {
+        console.error("[AudioUploader] 署名付きURL取得エラー", {
+          status: presignedRes.status,
+          data: presignedData,
         });
-        setSelectedFile(null);
-        formRef.current?.reset();
-      } else {
         setResult({
           success: false,
-          message: `エラー: ${response.error}`,
+          message: `アップロード準備エラー: ${presignedData.error ?? "署名付きURLの取得に失敗しました"}`,
         });
+        return;
       }
+
+      let putRes: Response;
+      try {
+        putRes = await fetch(presignedData.putUrl!, {
+          method: "PUT",
+          body: selectedFile,
+          headers: { "Content-Type": contentType },
+        });
+      } catch (r2FetchError) {
+        console.error("[AudioUploader] R2アップロード失敗（ネットワークエラー）", r2FetchError);
+        setResult({
+          success: false,
+          message: "R2へのアップロード中にネットワークエラーが発生しました。R2のCORS設定を確認してください。",
+        });
+        return;
+      }
+      if (!putRes.ok) {
+        console.error("[AudioUploader] R2アップロードエラー", {
+          status: putRes.status,
+          statusText: putRes.statusText,
+        });
+        setResult({
+          success: false,
+          message: `R2アップロードエラー: ${putRes.status} ${putRes.statusText}`,
+        });
+        return;
+      }
+
+      const saveRes = await fetch("/api/save-recording", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          r2Key: presignedData.r2Key,
+          audioUrl: presignedData.audioUrl,
+          title: title || selectedFile.name,
+          description,
+          rawTranscript,
+          duration,
+          fileSize,
+        }),
+      });
+      const saveData = (await saveRes.json()) as {
+        success?: boolean;
+        data?: { transcript?: string };
+        error?: string;
+      };
+      if (!saveRes.ok || !saveData.success) {
+        console.error("[AudioUploader] 録音保存エラー", {
+          status: saveRes.status,
+          data: saveData,
+        });
+        setResult({
+          success: false,
+          message: `保存エラー: ${saveData.error ?? "録音の保存に失敗しました"}`,
+        });
+        return;
+      }
+
+      setResult({
+        success: true,
+        message: "アップロードと文字起こしが完了しました",
+        transcript: saveData.data?.transcript,
+      });
+      setSelectedFile(null);
+      formRef.current?.reset();
     } catch (error) {
+      console.error("[AudioUploader] 予期しないエラー", {
+        error,
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        apiBase: API_BASE,
+      });
       setResult({
         success: false,
         message: `エラー: ${error instanceof Error ? error.message : "不明なエラー"}`,

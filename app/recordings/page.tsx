@@ -1,5 +1,6 @@
 import { searchRecordings, getChildrenForParentIds, getRecordingsCount } from "@/src/actions/recording-actions";
 import { getAllAudioCategories } from "@/src/actions/audio-category-actions";
+import { getCurrentUser } from "@/src/actions/auth-actions";
 import Link from "next/link";
 import RecordingCard from "@/src/components/recording/RecordingCard";
 import RecordingsSearchBar from "@/src/components/recording/RecordingsSearchBar";
@@ -22,11 +23,13 @@ export default async function RecordingsPage({
   const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
   const offset = (page - 1) * PAGE_SIZE;
 
-  const [parentRecordings, totalCount, audioCategories] = await Promise.all([
+  const [parentRecordings, totalCount, audioCategories, user] = await Promise.all([
     searchRecordings(searchQuery || undefined, undefined, audioCategoryId || undefined, PAGE_SIZE, offset),
     getRecordingsCount(searchQuery || undefined, audioCategoryId || undefined),
     getAllAudioCategories(),
+    getCurrentUser(),
   ]);
+  const canEdit = user?.role === "admin";
 
   const children =
     parentRecordings.length > 0
@@ -91,7 +94,7 @@ export default async function RecordingsPage({
                   initialQuery={searchQuery}
                   initialAudioCategoryId={audioCategoryId}
                 />
-                <AudioCategoryManager categories={audioCategories} />
+                {canEdit && <AudioCategoryManager categories={audioCategories} />}
               </div>
             </Suspense>
           )}
@@ -130,6 +133,7 @@ export default async function RecordingsPage({
                     recording={recording}
                     children={childList}
                     audioCategories={audioCategories}
+                    canEdit={canEdit}
                   />
                 );
               })}

@@ -1,0 +1,62 @@
+# CI: Lint, Build, Extension パッケージ
+name: CI
+
+on:
+  push:
+    branches: [main, feature/hybrid-ai-scouter]
+  pull_request:
+    branches: [main, feature/hybrid-ai-scouter]
+
+jobs:
+  web:
+    name: Web (Next.js)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: .
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build
+        run: npm run build
+        env:
+          TURSO_DATABASE_URL: libsql://placeholder.turso.io
+          TURSO_AUTH_TOKEN: placeholder
+          OPENAI_API_KEY: sk-placeholder
+          GOOGLE_AI_API_KEY: placeholder
+          R2_ACCOUNT_ID: placeholder
+          R2_ACCESS_KEY_ID: placeholder
+          R2_SECRET_ACCESS_KEY: placeholder
+          R2_BUCKET_NAME: placeholder
+          R2_PUBLIC_URL: https://placeholder.com
+
+  extension:
+    name: Extension (Chrome)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Package Extension
+        run: |
+          cd apps/extension
+          zip -r ../../extension.zip . -x "*.DS_Store"
+          cd ../..
+          mv extension.zip hybrid-scouter-extension-${{ github.sha }}.zip
+
+      - name: Upload Extension Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: hybrid-scouter-extension
+          path: hybrid-scouter-extension-*.zip

@@ -34,10 +34,14 @@ CREATE TABLE IF NOT EXISTS recordings (
 );
 
 -- ユーザーテーブル（将来的な拡張用）
+-- role: 'admin' = 編集可能, 'viewer' = 閲覧のみ
+-- password_hash: bcrypt でハッシュ化したパスワード
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
   name TEXT,
+  password_hash TEXT,
+  role TEXT DEFAULT 'viewer',
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
@@ -134,6 +138,7 @@ CREATE TABLE IF NOT EXISTS script_folders (
 );
 
 -- 3. 実際のトーク内容
+-- level: 1=初級, 2=中級, 3=上級（部品トークの難易度）
 CREATE TABLE IF NOT EXISTS script_items (
   id TEXT PRIMARY KEY,
   folder_id TEXT NOT NULL,
@@ -146,6 +151,7 @@ CREATE TABLE IF NOT EXISTS script_items (
   strategy_note TEXT,
   -- 次の一手
   next_move_hint TEXT,
+  level INTEGER DEFAULT 1,
   sort_order INTEGER DEFAULT 0,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,
@@ -330,3 +336,26 @@ CREATE TABLE IF NOT EXISTS transcript_corrections (
 
 CREATE INDEX IF NOT EXISTS idx_transcript_corrections_recording_id ON transcript_corrections(recording_id);
 CREATE INDEX IF NOT EXISTS idx_transcript_corrections_created_at ON transcript_corrections(created_at DESC);
+
+-- ========================================
+-- アポヒアリング（営業ヒアリング項目）
+-- ========================================
+
+CREATE TABLE IF NOT EXISTS hearing_categories (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  sort_order INTEGER DEFAULT 0,
+  created_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS hearing_items (
+  id TEXT PRIMARY KEY,
+  category_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  sort_order INTEGER DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  FOREIGN KEY (category_id) REFERENCES hearing_categories(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_hearing_items_category ON hearing_items(category_id);

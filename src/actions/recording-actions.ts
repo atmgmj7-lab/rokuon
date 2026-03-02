@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/src/lib/db";
+import { requireAdminOrError } from "@/src/actions/auth-actions";
 
 /** @deprecated 使用禁止。API Route /api/upload-and-transcribe を使用してください。 */
 export async function uploadAndTranscribe(_formData: FormData) {
@@ -222,6 +223,8 @@ export async function updateRecordingAudioCategory(
   recordingId: string,
   audioCategoryId: string | null
 ) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     await db.execute({
       sql: "UPDATE recordings SET audio_category_id = ?, updated_at = ? WHERE id = ?",
@@ -254,6 +257,8 @@ function extractFeedbackSummaryFromTranscript(content: string): string {
 
 // 録音を学習データとして登録/解除（指導音声ペア用）
 export async function setRecordingTrainingData(recordingId: string, isTraining: boolean) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     const recResult = await db.execute({
       sql: "SELECT id, parent_id FROM recordings WHERE id = ?",
@@ -302,6 +307,8 @@ export async function setRecordingTrainingData(recordingId: string, isTraining: 
 
 // 録音のメモを更新
 export async function updateRecordingMemo(recordingId: string, memo: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     await db.execute({
       sql: "UPDATE recordings SET memo = ?, updated_at = ? WHERE id = ?",
@@ -317,6 +324,8 @@ export async function updateRecordingMemo(recordingId: string, memo: string) {
 
 // 録音のカテゴリを更新
 export async function updateRecordingCategory(recordingId: string, category: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     await db.execute({
       sql: "UPDATE recordings SET category = ?, updated_at = ? WHERE id = ?",
@@ -363,6 +372,8 @@ export async function getTranscriptByRecordingId(recordingId: string) {
 
 // 録音のcustom_idを更新
 export async function updateRecordingCustomId(recordingId: string, customId: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     await db.execute({
       sql: "UPDATE recordings SET custom_id = ?, updated_at = ? WHERE id = ?",
@@ -378,6 +389,8 @@ export async function updateRecordingCustomId(recordingId: string, customId: str
 
 // 文字起こしを更新
 export async function updateTranscript(transcriptId: string, content: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     await db.execute({
       sql: "UPDATE transcripts SET content = ? WHERE id = ?",
@@ -393,6 +406,8 @@ export async function updateTranscript(transcriptId: string, content: string) {
 
 // 録音データを論理削除（ゴミ箱へ移動）
 export async function deleteRecording(recordingId: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     await db.execute({
       sql: "UPDATE recordings SET is_deleted = 1, updated_at = ? WHERE id = ?",
@@ -409,6 +424,8 @@ export async function deleteRecording(recordingId: string) {
 
 // 文字起こしの内容を更新（JSON文字列を直接保存）
 export async function updateTranscriptContent(transcriptId: string, newContent: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     await db.execute({
       sql: "UPDATE transcripts SET content = ? WHERE id = ?",
@@ -423,6 +440,8 @@ export async function updateTranscriptContent(transcriptId: string, newContent: 
 
 // 修正テキストを corrected_content に保存（学習用）
 export async function saveCorrectedTranscript(transcriptId: string, correctedContent: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     await db.execute({
       sql: "UPDATE transcripts SET content = ?, corrected_content = ? WHERE id = ?",
@@ -437,6 +456,8 @@ export async function saveCorrectedTranscript(transcriptId: string, correctedCon
 
 // 学習待ちステータスに設定
 export async function setTranscriptLearningPending(transcriptId: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     await db.execute({
       sql: "UPDATE transcripts SET learning_pending = 1 WHERE id = ?",

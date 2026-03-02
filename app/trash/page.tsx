@@ -1,9 +1,14 @@
 import Link from "next/link";
 import { getTrashRecordings } from "@/src/actions/trash-actions";
+import { getCurrentUser } from "@/src/actions/auth-actions";
 import TrashClient from "@/src/components/trash/TrashClient";
 
 export default async function TrashPage() {
-  const items = await getTrashRecordings();
+  const [items, user] = await Promise.all([
+    getTrashRecordings(),
+    getCurrentUser(),
+  ]);
+  const canEdit = user?.role === "admin";
 
   return (
     <div className="min-h-screen bg-[#FDFCFB] py-12">
@@ -23,7 +28,7 @@ export default async function TrashPage() {
           </p>
         </header>
 
-        <TrashClient items={items} />
+        <TrashClient items={items} canEdit={canEdit} />
       </div>
     </div>
   );

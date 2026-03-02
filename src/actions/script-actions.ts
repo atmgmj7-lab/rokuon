@@ -1,11 +1,14 @@
 "use server";
 
 import { db } from "@/src/lib/db";
+import { requireAdminOrError } from "@/src/actions/auth-actions";
 // import { revalidatePath } from "next/cache";
 import type { ScriptFlowData, Script, ParsedScript, ParsedScriptLog } from "@/src/types/script";
 
 // スクリプトを作成
 export async function createScript(title: string, flowData: ScriptFlowData) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     const scriptId = `script_${Date.now()}`;
     const now = Date.now();
@@ -33,6 +36,8 @@ export async function updateScript(
   title: string,
   flowData: ScriptFlowData
 ) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     const now = Date.now();
 
@@ -55,6 +60,8 @@ export async function updateScript(
 
 // スクリプトを削除
 export async function deleteScript(scriptId: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     await db.execute({
       sql: `DELETE FROM scripts WHERE id = ?`,

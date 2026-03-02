@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/src/lib/db";
+import { requireAdminOrError } from "@/src/actions/auth-actions";
 
 export type RecordingCategory = {
   id: string;
@@ -29,6 +30,8 @@ export async function getAllCategories(): Promise<RecordingCategory[]> {
 }
 
 export async function createCategory(name: string, color?: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     const id = `cat_${Date.now()}`;
     const now = Date.now();
@@ -44,6 +47,8 @@ export async function createCategory(name: string, color?: string) {
 }
 
 export async function updateCategory(id: string, name: string, color?: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     await db.execute({
       sql: "UPDATE categories SET name = ?, color = ? WHERE id = ?",
@@ -57,6 +62,8 @@ export async function updateCategory(id: string, name: string, color?: string) {
 }
 
 export async function deleteCategory(id: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     await db.execute({ sql: "DELETE FROM categories WHERE id = ?", args: [id] });
     await db.execute({
@@ -71,6 +78,8 @@ export async function deleteCategory(id: string) {
 }
 
 export async function setRecordingCategory(recordingId: string, categoryId: string | null) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     await db.execute({
       sql: "DELETE FROM recording_categories WHERE recording_id = ?",

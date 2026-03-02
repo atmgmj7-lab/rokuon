@@ -23,6 +23,7 @@ import {
   deleteCheckItem,
   getAllDynamicCategories,
   createDynamicCategory,
+  deleteDynamicCategory,
   getAllTimelines,
   createTimelineWithSituation,
   deleteTimeline,
@@ -32,6 +33,8 @@ import {
   getTimelineCheckItems,
   addCheckItemToTimeline,
   removeCheckItemFromTimeline,
+  setScriptItemVisibility,
+  getScriptItemVisibilityForCurrentUser,
 } from "@/src/actions/workspace-actions";
 import type {
   ScriptItem,
@@ -44,6 +47,9 @@ import type {
 } from "@/src/types/workspace";
 import Link from "next/link";
 import LearningDataManager from "@/src/components/workspace/LearningDataManager";
+import HearingManager from "@/src/components/workspace/HearingManager";
+import UserManager from "@/src/components/workspace/UserManager";
+import { getCurrentUser, logoutUser } from "@/src/actions/auth-actions";
 
 type MenuTab =
   | "main_scenario"
@@ -52,11 +58,14 @@ type MenuTab =
   | "categories"
   | "checks"
   | "timelines"
-  | "learning_data";
+  | "hearing"
+  | "learning_data"
+  | "users";
 
 export default function WorkspacePage() {
   const [activeMenu, setActiveMenu] = useState<MenuTab>("main_scenario");
   const [loading, setLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<{ id: string; email: string; role: "admin" | "viewer" } | null>(null);
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved">("idle");
 
   // データ
@@ -66,6 +75,7 @@ export default function WorkspacePage() {
   const [checkItems, setCheckItems] = useState<CheckItem[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [timelines, setTimelines] = useState<Timeline[]>([]);
+  const [visibilityMap, setVisibilityMap] = useState<Record<string, boolean>>({});
 
   // 編集中のアイテム
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
@@ -95,13 +105,14 @@ export default function WorkspacePage() {
   // データを読み込む
   const loadData = async (silent = false) => {
     if (!silent) setLoading(true);
-    const [items, folders, sits, chks, cats, tls] = await Promise.all([
+    const [items, folders, sits, chks, cats, tls, visMap] = await Promise.all([
       getAllItems(),
       getAllFolders(),
       getAllSituations(),
       getAllCheckItems(),
       getAllDynamicCategories(),
       getAllTimelines(),
+      getScriptItemVisibilityForCurrentUser(),
     ]);
 
     setAllItems(items);
@@ -110,6 +121,7 @@ export default function WorkspacePage() {
     setCheckItems(chks);
     setCategories(cats);
     setTimelines(tls);
+    setVisibilityMap(visMap);
 
     if (!silent) setLoading(false);
   };
@@ -152,7 +164,8 @@ export default function WorkspacePage() {
         debouncedIsQuickResponse,
         selectedItem.item_type,
         debouncedTargetSituationId || undefined,
-        debouncedTriggerCheckItemId || undefined
+        debouncedTriggerCheckItemId || undefined,
+        undefined
       );
 
       // 楽観的UIアップデート（ローカル状態を更新）
@@ -191,11 +204,12 @@ export default function WorkspacePage() {
     selectedItem,
   ]);
 
-  // 新規アイテムを作成
+  // 新規アイテムを作成（タブに応じて base_talk / situational フォルダを選択）
   const handleCreateItem = async (itemType: "main_scenario" | "component") => {
-    const defaultFolder = allFolders.find((f) => f.folder_type === "base_talk");
+    const folderType = itemType === "main_scenario" ? "base_talk" : "situational";
+    const defaultFolder = allFolders.find((f) => f.folder_type === folderType);
     if (!defaultFolder) {
-      alert("フォルダが見つかりません");
+      alert(`${folderType === "base_talk" ? "基本シナリオ" : "部品トーク"}用のフォルダが見つかりません。先にフォルダを作成してください。`);
       return;
     }
 
@@ -206,7 +220,11 @@ export default function WorkspacePage() {
       "",
       "",
       "",
-      itemType
+      itemType,
+      undefined,
+      undefined,
+      0,
+      itemType === "component" ? 1 : 1
     );
 
     if (result.success && result.itemId) {
@@ -259,10 +277,13 @@ export default function WorkspacePage() {
     setResponses(itemResponses);
   };
 
-  // 新しい分岐トークを作成
+  // 新しい分岐トークを作成（部品トークなので situational フォルダを使用）
   const handleCreateBranchTalk = async (responseId: string) => {
-    const defaultFolder = allFolders.find((f) => f.folder_type === "base_talk");
-    if (!defaultFolder) return;
+    const defaultFolder = allFolders.find((f) => f.folder_type === "situational");
+    if (!defaultFolder) {
+      alert("部品トーク用のフォルダが見つかりません。先にフォルダを作成してください。");
+      return;
+    }
 
     const result = await createItem(
       defaultFolder.id,
@@ -271,7 +292,11 @@ export default function WorkspacePage() {
       "",
       "",
       "",
-      "component"
+      "component",
+      undefined,
+      undefined,
+      0,
+      1
     );
 
     if (result.success && result.itemId) {
@@ -288,6 +313,10 @@ export default function WorkspacePage() {
 
   useEffect(() => {
     loadData();
+  }, []);
+
+  useEffect(() => {
+    getCurrentUser().then(setCurrentUser);
   }, []);
 
   const displayItems =
@@ -315,6 +344,12 @@ export default function WorkspacePage() {
             </p>
           </div>
           <div className="flex items-center gap-4">
+            {currentUser && (
+              <span className="text-sm text-[#827F7B]">
+                {currentUser.email}
+                <span className="ml-2 text-stone-400">({currentUser.role})</span>
+              </span>
+            )}
             {/* 保存状態インジケーター */}
             {selectedItem && (
               <div className="flex items-center gap-2 bg-white border border-stone-200 px-4 py-2 rounded-lg">
@@ -347,6 +382,14 @@ export default function WorkspacePage() {
             >
               ← ホーム
             </Link>
+            <form action={logoutUser}>
+              <button
+                type="submit"
+                className="px-4 py-2 bg-white border border-stone-200 text-stone-600 rounded-lg text-sm font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
+              >
+                ログアウト
+              </button>
+            </form>
           </div>
         </div>
       </div>
@@ -363,6 +406,11 @@ export default function WorkspacePage() {
             active={activeMenu === "component"}
             onClick={() => setActiveMenu("component")}
             label="部品トーク"
+          />
+          <MenuButton
+            active={activeMenu === "hearing"}
+            onClick={() => setActiveMenu("hearing")}
+            label="アポヒアリング"
           />
           <MenuButton
             active={activeMenu === "timelines"}
@@ -389,6 +437,13 @@ export default function WorkspacePage() {
             onClick={() => setActiveMenu("learning_data")}
             label="学習データ（修正履歴）"
           />
+          {(currentUser?.role ?? "viewer") === "admin" && (
+            <MenuButton
+              active={activeMenu === "users"}
+              onClick={() => setActiveMenu("users")}
+              label="ユーザー管理"
+            />
+          )}
         </div>
       </div>
 
@@ -408,12 +463,22 @@ export default function WorkspacePage() {
             editingIsQuickResponse={editingIsQuickResponse}
             editingTargetSituationId={editingTargetSituationId}
             editingTriggerCheckItemId={editingTriggerCheckItemId}
+            currentUserRole={currentUser?.role ?? "viewer"}
             situations={situations}
             checkItems={checkItems}
             categories={categories}
             responses={responses}
             allItems={allItems}
             saveStatus={saveStatus}
+            visibilityMap={visibilityMap}
+            onVisibilityChange={async (itemId, isVisible) => {
+              const r = await setScriptItemVisibility(itemId, isVisible);
+              if (r.success) {
+                setVisibilityMap((prev) => ({ ...prev, [itemId]: isVisible }));
+              } else {
+                alert(r.error || "設定の保存に失敗しました");
+              }
+            }}
             onSelectItem={loadItem}
             onCreateItem={handleCreateItem}
             onDeleteItem={handleDeleteItem}
@@ -453,6 +518,9 @@ export default function WorkspacePage() {
           <CheckItemManager checkItems={checkItems} onUpdate={() => loadData(true)} />
         )}
 
+        {/* アポヒアリング管理 */}
+        {activeMenu === "hearing" && <HearingManager onUpdate={() => loadData(true)} />}
+
         {/* カテゴリ管理 */}
         {activeMenu === "categories" && (
           <CategoryManager categories={categories} onUpdate={() => loadData(true)} />
@@ -460,6 +528,9 @@ export default function WorkspacePage() {
 
         {/* 学習データ（修正履歴） */}
         {activeMenu === "learning_data" && <LearningDataManager />}
+
+        {/* ユーザー管理（admin のみ） */}
+        {activeMenu === "users" && (currentUser?.role ?? "viewer") === "admin" && <UserManager />}
       </div>
     </div>
   );
@@ -502,12 +573,15 @@ function TalkEditor({
   editingIsQuickResponse,
   editingTargetSituationId,
   editingTriggerCheckItemId,
+  currentUserRole,
   situations,
   checkItems,
   categories,
   responses,
   allItems,
   saveStatus,
+  visibilityMap,
+  onVisibilityChange,
   onSelectItem,
   onCreateItem,
   onDeleteItem,
@@ -524,6 +598,8 @@ function TalkEditor({
   onDeleteResponse,
   onCreateBranchTalk,
 }: any) {
+  const canEdit = currentUserRole === "admin";
+
   return (
     <div className="flex gap-6">
       {/* 左: リスト */}
@@ -532,12 +608,14 @@ function TalkEditor({
           <h2 className="text-xl font-bold text-[#2D2B2A]">
             {activeMenu === "main_scenario" ? "基本シナリオ" : "部品トーク"}
           </h2>
-          <button
-            onClick={() => onCreateItem(activeMenu)}
-            className="px-3 py-1.5 bg-white border border-stone-200 text-stone-600 rounded-lg font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors text-sm"
-          >
-            追加
-          </button>
+          {canEdit && (
+            <button
+              onClick={() => onCreateItem(activeMenu)}
+              className="px-3 py-1.5 bg-white border border-stone-200 text-stone-600 rounded-lg font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors text-sm"
+            >
+              追加
+            </button>
+          )}
         </div>
 
         {displayItems.length === 0 && (
@@ -562,12 +640,14 @@ function TalkEditor({
                   <p className="text-xs text-[#827F7B] mt-1">{item.hearing_purpose}</p>
                 )}
               </div>
-              <button
-                onClick={() => onDeleteItem(item.id)}
-                className="ml-2 px-3 py-1.5 bg-white border border-stone-200 text-stone-600 rounded-lg text-xs font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
-              >
-                削除
-              </button>
+              {canEdit && (
+                <button
+                  onClick={() => onDeleteItem(item.id)}
+                  className="ml-2 px-3 py-1.5 bg-white border border-stone-200 text-stone-600 rounded-lg text-xs font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
+                >
+                  削除
+                </button>
+              )}
             </div>
           ))}
         </div>
@@ -613,8 +693,9 @@ function TalkEditor({
                   <input
                     type="text"
                     value={editingTitle}
-                    onChange={(e) => onChangeTitle(e.target.value)}
-                    className="w-full px-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-300 focus:border-stone-300 transition-all"
+                    onChange={(e) => canEdit && onChangeTitle(e.target.value)}
+                    readOnly={!canEdit}
+                    className={`w-full px-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-300 focus:border-stone-300 transition-all ${!canEdit ? "bg-stone-50 cursor-default" : ""}`}
                     placeholder="トークのタイトルを入力..."
                   />
                 </div>
@@ -626,9 +707,10 @@ function TalkEditor({
                   </label>
                   <textarea
                     value={editingHearingPurpose}
-                    onChange={(e) => onChangeHearingPurpose(e.target.value)}
+                    onChange={(e) => canEdit && onChangeHearingPurpose(e.target.value)}
+                    readOnly={!canEdit}
                     rows={3}
-                    className="w-full px-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-300 focus:border-stone-300 transition-all"
+                    className={`w-full px-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-300 focus:border-stone-300 transition-all ${!canEdit ? "bg-stone-50 cursor-default" : ""}`}
                     placeholder="このトークの目的を入力..."
                   />
                 </div>
@@ -639,9 +721,10 @@ function TalkEditor({
                   </label>
                   <textarea
                     value={editingContent}
-                    onChange={(e) => onChangeContent(e.target.value)}
+                    onChange={(e) => canEdit && onChangeContent(e.target.value)}
+                    readOnly={!canEdit}
                     rows={8}
-                    className="w-full px-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-300 focus:border-stone-300 text-lg transition-all"
+                    className={`w-full px-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-300 focus:border-stone-300 text-lg transition-all ${!canEdit ? "bg-stone-50 cursor-default" : ""}`}
                     placeholder="実際に話すトーク内容を入力..."
                   />
                 </div>
@@ -652,9 +735,10 @@ function TalkEditor({
                   </label>
                   <textarea
                     value={editingStrategyNote}
-                    onChange={(e) => onChangeStrategyNote(e.target.value)}
+                    onChange={(e) => canEdit && onChangeStrategyNote(e.target.value)}
+                    readOnly={!canEdit}
                     rows={4}
-                    className="w-full px-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-300 focus:border-stone-300 transition-all"
+                    className={`w-full px-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-300 focus:border-stone-300 transition-all ${!canEdit ? "bg-stone-50 cursor-default" : ""}`}
                     placeholder="このトークの戦略的意図を入力..."
                   />
                 </div>
@@ -672,8 +756,9 @@ function TalkEditor({
                     </label>
                     <select
                       value={editingTargetSituationId}
-                      onChange={(e) => onChangeTargetSituationId(e.target.value)}
-                      className="w-full px-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-300 focus:border-stone-300 transition-all"
+                      onChange={(e) => canEdit && onChangeTargetSituationId(e.target.value)}
+                      disabled={!canEdit}
+                      className="w-full px-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-300 focus:border-stone-300 transition-all disabled:bg-stone-100 disabled:cursor-not-allowed"
                     >
                       <option value="">紐付けなし</option>
                       {situations.map((sit: Situation) => (
@@ -690,8 +775,9 @@ function TalkEditor({
                     </label>
                     <select
                       value={editingTriggerCheckItemId}
-                      onChange={(e) => onChangeTriggerCheckItemId(e.target.value)}
-                      className="w-full px-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-300 focus:border-stone-300 transition-all"
+                      onChange={(e) => canEdit && onChangeTriggerCheckItemId(e.target.value)}
+                      disabled={!canEdit}
+                      className="w-full px-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-300 focus:border-stone-300 transition-all disabled:bg-stone-100 disabled:cursor-not-allowed"
                     >
                       <option value="">紐付けなし</option>
                       {checkItems.map((check: CheckItem) => (
@@ -715,8 +801,9 @@ function TalkEditor({
                   </label>
                   <select
                     value={editingCategoryId}
-                    onChange={(e) => onChangeCategoryId(e.target.value)}
-                    className="w-full px-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-300 focus:border-stone-300 transition-all"
+                    onChange={(e) => canEdit && onChangeCategoryId(e.target.value)}
+                    disabled={!canEdit}
+                    className="w-full px-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-300 focus:border-stone-300 transition-all disabled:bg-stone-100 disabled:cursor-not-allowed"
                   >
                     <option value="">未分類</option>
                     {categories.map((cat: Category) => (
@@ -730,12 +817,36 @@ function TalkEditor({
                 <div className="flex items-center justify-between p-4 bg-stone-50 rounded-lg border border-stone-200/80">
                   <div>
                     <label className="block text-sm font-bold text-[#2D2B2A]">
+                      スカウターに表示する
+                    </label>
+                    <p className="text-xs text-[#827F7B] mt-1">
+                      拡張機能のスカウターでこのトークを表示
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => onVisibilityChange?.(selectedItem.id, !(visibilityMap[selectedItem.id] !== false))}
+                    className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
+                      (visibilityMap[selectedItem.id] !== false) ? "bg-stone-600" : "bg-stone-300"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-6 w-6 transform rounded-full bg-white transition-transform ${
+                        (visibilityMap[selectedItem.id] !== false) ? "translate-x-7" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </div>
+
+                <div className="flex items-center justify-between p-4 bg-stone-50 rounded-lg border border-stone-200/80">
+                  <div>
+                    <label className="block text-sm font-bold text-[#2D2B2A]">
                       Quick Response（武器庫）に表示
                     </label>
                     <p className="text-xs text-[#827F7B] mt-1">
                       コール画面の右下に常時表示
                     </p>
                   </div>
+                  {canEdit && (
                   <button
                     onClick={() => onChangeIsQuickResponse(editingIsQuickResponse === 1 ? 0 : 1)}
                     className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors ${
@@ -748,6 +859,12 @@ function TalkEditor({
                       }`}
                     />
                   </button>
+                  )}
+                  {!canEdit && (
+                    <span className="text-sm text-[#827F7B]">
+                      {editingIsQuickResponse === 1 ? "ON" : "OFF"}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
@@ -756,12 +873,14 @@ function TalkEditor({
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-bold text-[#2D2B2A]">返答パターンと分岐</h3>
-                <button
-                  onClick={onAddResponse}
-                  className="px-3 py-1.5 bg-white border border-stone-200 text-stone-600 rounded-lg font-medium text-sm hover:bg-stone-50 hover:text-stone-900 transition-colors"
-                >
-                  返答を追加
-                </button>
+                {canEdit && (
+                  <button
+                    onClick={onAddResponse}
+                    className="px-3 py-1.5 bg-white border border-stone-200 text-stone-600 rounded-lg font-medium text-sm hover:bg-stone-50 hover:text-stone-900 transition-colors"
+                  >
+                    返答を追加
+                  </button>
+                )}
               </div>
 
               {responses.length === 0 && (
@@ -783,17 +902,20 @@ function TalkEditor({
                           type="text"
                           value={response.response_text}
                           onChange={(e) =>
-                            onUpdateResponse(response.id, e.target.value, response.next_item_id)
+                            canEdit && onUpdateResponse(response.id, e.target.value, response.next_item_id)
                           }
+                          readOnly={!canEdit}
                           placeholder="顧客の返答（例: 忙しいです）"
-                          className="flex-1 px-4 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-300 focus:border-stone-300 mr-3 transition-all"
+                          className={`flex-1 px-4 py-2 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-300 focus:border-stone-300 mr-3 transition-all ${!canEdit ? "bg-stone-50 cursor-default" : ""}`}
                         />
-                        <button
-                          onClick={() => onDeleteResponse(response.id)}
-                          className="px-3 py-1.5 bg-white border border-stone-200 text-stone-600 rounded-lg text-sm font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
-                        >
-                          削除
-                        </button>
+                        {canEdit && (
+                          <button
+                            onClick={() => onDeleteResponse(response.id)}
+                            className="px-3 py-1.5 bg-white border border-stone-200 text-stone-600 rounded-lg text-sm font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
+                          >
+                            削除
+                          </button>
+                        )}
                       </div>
 
                       <div className="pl-4 border-l-4 border-stone-300">
@@ -806,6 +928,8 @@ function TalkEditor({
                           </div>
                         ) : (
                           <div className="space-y-2">
+                            {canEdit && (
+                              <>
                             <button
                               onClick={() => onCreateBranchTalk(response.id)}
                               className="w-full px-4 py-2 bg-white border border-stone-200 text-stone-600 rounded-lg font-medium text-sm hover:bg-stone-50 hover:text-stone-900 transition-colors"
@@ -831,6 +955,8 @@ function TalkEditor({
                                 </option>
                               ))}
                             </select>
+                            </>
+                            )}
                           </div>
                         )}
                       </div>
@@ -1070,6 +1196,16 @@ function CategoryManager({
     onUpdate();
   };
 
+  const handleDelete = async (categoryId: string) => {
+    if (!window.confirm("このカテゴリと中に含まれるトークをすべて削除してもよろしいですか？")) return;
+    const result = await deleteDynamicCategory(categoryId);
+    if (result.success) {
+      onUpdate();
+    } else {
+      alert(result.error ?? "削除に失敗しました");
+    }
+  };
+
   return (
     <div className="max-w-4xl mx-auto">
       <div className="bg-white rounded-2xl border border-stone-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] p-6">
@@ -1113,10 +1249,24 @@ function CategoryManager({
               style={{ borderLeftWidth: "6px", borderLeftColor: cat.color }}
             >
               <h4 className="font-bold text-[#2D2B2A]">{cat.name}</h4>
-              <div
-                className="w-8 h-8 rounded-full"
-                style={{ backgroundColor: cat.color }}
-              />
+              <div className="flex items-center gap-2">
+                <div
+                  className="w-8 h-8 rounded-full"
+                  style={{ backgroundColor: cat.color }}
+                />
+                <button
+                  type="button"
+                  onClick={() => handleDelete(cat.id)}
+                  className="p-1.5 text-stone-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                  title="削除"
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M3 6h18" />
+                    <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
+                    <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
+                  </svg>
+                </button>
+              </div>
             </div>
           ))}
         </div>

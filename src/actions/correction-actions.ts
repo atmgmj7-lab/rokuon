@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/src/lib/db";
+import { requireAdminOrError } from "@/src/actions/auth-actions";
 
 export type CorrectionInput = {
   original_text: string;
@@ -16,6 +17,8 @@ export async function saveTranscriptCorrections(
   transcriptId: string,
   corrections: CorrectionInput[]
 ) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   if (!recordingId || corrections.length === 0) {
     return { success: true };
   }

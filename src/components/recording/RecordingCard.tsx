@@ -34,6 +34,7 @@ interface RecordingCardProps {
   recording: Recording;
   children: Recording[];
   audioCategories?: AudioCategory[];
+  canEdit?: boolean;
 }
 
 // フィードバック音声用の文字起こし（編集・corrected_content 保存対応）
@@ -41,10 +42,12 @@ function ChildTranscriptButton({
   recordingId,
   audioUrl,
   isTrainingData,
+  canEdit = true,
 }: {
   recordingId: string;
   audioUrl?: string;
   isTrainingData?: boolean;
+  canEdit?: boolean;
 }) {
   const [show, setShow] = useState(false);
   const [transcript, setTranscript] = useState<{ id: string; content: string; learning_pending?: boolean } | null | undefined>(undefined);
@@ -85,6 +88,7 @@ function ChildTranscriptButton({
         >
           {show ? "文字起こしを閉じる" : "文字起こしを表示・編集"}
         </button>
+        {canEdit && (
         <button
           type="button"
           onClick={handleTrainingToggle}
@@ -98,6 +102,7 @@ function ChildTranscriptButton({
         >
           {isPending ? "処理中..." : localIsTraining ? "✓ 学習データ登録済" : "このペアを学習データに登録"}
         </button>
+        )}
       </div>
       {show && transcript !== undefined && (
         <div className="mt-2 p-3 bg-white rounded border border-[#EBE8E3] shadow-sm shadow-stone-200/50">
@@ -110,6 +115,7 @@ function ChildTranscriptButton({
               recordingId={recordingId}
               audioUrl={audioUrl}
               learningPending={!!transcript.learning_pending}
+              canEdit={canEdit}
               onSaved={(newContent) => {
                 setTranscript({ ...transcript, content: newContent });
               }}
@@ -125,7 +131,7 @@ function ChildTranscriptButton({
 }
 
 
-export default function RecordingCard({ recording, children, audioCategories = [] }: RecordingCardProps) {
+export default function RecordingCard({ recording, children, audioCategories = [], canEdit = true }: RecordingCardProps) {
   const [analyzing, setAnalyzing] = useState(false);
   const [analysisResult, setAnalysisResult] = useState<any>(null);
   const [showTranscript, setShowTranscript] = useState(false);
@@ -216,6 +222,7 @@ export default function RecordingCard({ recording, children, audioCategories = [
       <div className="mb-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3 flex-wrap">
+            {canEdit && (
             <button
               onClick={async () => {
                 if (window.confirm("この録音をゴミ箱に移動しますか？")) {
@@ -231,15 +238,16 @@ export default function RecordingCard({ recording, children, audioCategories = [
               title="削除"
             >
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
               </svg>
             </button>
+            )}
             {getTypeBadge(recording.recording_type)}
             <h2 className="text-xl font-bold text-[#36332E]">{recording.title}</h2>
             <span className="px-2 py-1 bg-[#FCFAF8] text-[#9E9A95] rounded text-xs font-mono" title="録音ID">
               ID: {recording.id}
             </span>
-            {editingCustomId ? (
+            {canEdit && editingCustomId ? (
               <span className="flex items-center gap-2">
                 <input
                   type="text"
@@ -264,7 +272,7 @@ export default function RecordingCard({ recording, children, audioCategories = [
                   キャンセル
                 </button>
               </span>
-            ) : (
+            ) : canEdit ? (
               <button
                 onClick={() => {
                   setEditingCustomId(true);
@@ -275,7 +283,9 @@ export default function RecordingCard({ recording, children, audioCategories = [
               >
                 {recording.custom_id ? `参照: ${recording.custom_id}` : "IDを設定"}
               </button>
-            )}
+            ) : recording.custom_id ? (
+              <span className="px-2 py-1 text-[#9E9A95] text-xs">参照: {recording.custom_id}</span>
+            ) : null}
           </div>
           <p className="text-sm text-[#9E9A95]">
             {new Date(recording.created_at).toLocaleString("ja-JP")}
@@ -285,6 +295,7 @@ export default function RecordingCard({ recording, children, audioCategories = [
         {/* 音声カテゴリ選択 */}
         <div className="mb-3 flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium text-[#9E9A95]">音声カテゴリ:</span>
+          {canEdit ? (
           <select
             value={localAudioCategoryId || ""}
             onChange={(e) => handleSaveAudioCategory(e.target.value || null)}
@@ -297,6 +308,11 @@ export default function RecordingCard({ recording, children, audioCategories = [
               </option>
             ))}
           </select>
+          ) : (
+            <span className="text-sm text-[#36332E]">
+              {audioCategories.find((c) => c.id === localAudioCategoryId)?.name ?? "未設定"}
+            </span>
+          )}
           {audioCategories.length === 0 && (
             <span className="text-xs text-[#9E9A95]">音声カテゴリ管理から追加してください</span>
           )}
@@ -362,6 +378,7 @@ export default function RecordingCard({ recording, children, audioCategories = [
                 audioUrl={recording.audio_url}
                 memo={localMemo}
                 learningPending={!!transcript.learning_pending}
+                canEdit={canEdit}
                 onSaved={(newContent) => {
                   setTranscript({ ...transcript, content: newContent });
                 }}
@@ -447,6 +464,7 @@ export default function RecordingCard({ recording, children, audioCategories = [
                 recordingId={child.id}
                 audioUrl={child.audio_url}
                 isTrainingData={!!child.is_training_data}
+                canEdit={canEdit}
               />
 
               <div className="flex items-center justify-between mt-2">

@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/src/lib/db";
+import { requireAdminOrError, getCurrentUser } from "@/src/actions/auth-actions";
 // import { revalidatePath } from "next/cache";
 import type { 
   ScriptCategory, 
@@ -18,6 +19,8 @@ import type {
 // ========== カテゴリ（大分類）操作 ==========
 
 export async function createCategory(name: string, description?: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     const id = `cat_${Date.now()}`;
     const now = Date.now();
@@ -55,6 +58,8 @@ export async function getAllCategories(): Promise<ScriptCategory[]> {
 }
 
 export async function updateCategory(categoryId: string, name: string, description?: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     await db.execute({
       sql: "UPDATE script_categories SET name = ?, description = ? WHERE id = ?",
@@ -70,6 +75,8 @@ export async function updateCategory(categoryId: string, name: string, descripti
 }
 
 export async function deleteCategory(categoryId: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     await db.execute({
       sql: "DELETE FROM script_categories WHERE id = ?",
@@ -93,6 +100,8 @@ export async function createFolder(
   sortOrder: number = 0,
   isVisibleInSidebar: number = 1
 ) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     const id = `folder_${Date.now()}`;
     const now = Date.now();
@@ -139,6 +148,8 @@ export async function updateFolder(
   sortOrder: number,
   isVisibleInSidebar?: number
 ) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     if (isVisibleInSidebar !== undefined) {
       await db.execute({
@@ -162,6 +173,8 @@ export async function updateFolder(
 
 // サイドバー表示を切り替え
 export async function toggleSidebarVisibility(folderId: string, isVisible: boolean) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     await db.execute({
       sql: "UPDATE script_folders SET is_visible_in_sidebar = ? WHERE id = ?",
@@ -199,6 +212,8 @@ export async function getAllFolders(): Promise<ScriptFolder[]> {
 }
 
 export async function deleteFolder(folderId: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     await db.execute({
       sql: "DELETE FROM script_folders WHERE id = ?",
@@ -216,6 +231,8 @@ export async function deleteFolder(folderId: string) {
 // ========== トークアイテム操作 ==========
 
 export async function deleteItem(itemId: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     await db.execute({
       sql: "DELETE FROM script_items WHERE id = ?",
@@ -241,8 +258,11 @@ export async function createItem(
   itemType: string = "component",
   targetSituationId?: string,
   triggerCheckItemId?: string,
-  sortOrder: number = 0
+  sortOrder: number = 0,
+  level: number = 1
 ) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     const id = `item_${Date.now()}`;
     const now = Date.now();
@@ -250,8 +270,8 @@ export async function createItem(
     await db.execute({
       sql: `INSERT INTO script_items 
             (id, folder_id, title, hearing_purpose, content, strategy_note, next_move_hint, 
-             item_type, target_situation_id, trigger_check_item_id, sort_order, created_at, updated_at) 
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+             item_type, target_situation_id, trigger_check_item_id, sort_order, level, created_at, updated_at) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         id,
         folderId,
@@ -264,6 +284,7 @@ export async function createItem(
         targetSituationId || null,
         triggerCheckItemId || null,
         sortOrder,
+        level,
         now,
         now,
       ],
@@ -299,6 +320,7 @@ export async function getItemsByFolder(folderId: string): Promise<ScriptItem[]> 
       target_situation_id: row.target_situation_id as string,
       trigger_check_item_id: row.trigger_check_item_id as string,
       sort_order: row.sort_order as number,
+      level: (row.level as number) ?? 1,
       created_at: row.created_at as number,
       updated_at: row.updated_at as number,
     }));
@@ -333,6 +355,7 @@ export async function getItemById(itemId: string): Promise<ScriptItem | null> {
       target_situation_id: row.target_situation_id as string,
       trigger_check_item_id: row.trigger_check_item_id as string,
       sort_order: row.sort_order as number,
+      level: (row.level as number) ?? 1,
       created_at: row.created_at as number,
       updated_at: row.updated_at as number,
     };
@@ -363,6 +386,7 @@ export async function getAllItems(): Promise<ScriptItem[]> {
       target_situation_id: row.target_situation_id as string,
       trigger_check_item_id: row.trigger_check_item_id as string,
       sort_order: row.sort_order as number,
+      level: (row.level as number) ?? 1,
       created_at: row.created_at as number,
       updated_at: row.updated_at as number,
     }));
@@ -384,8 +408,11 @@ export async function updateItem(
   itemType?: string,
   targetSituationId?: string,
   triggerCheckItemId?: string,
-  sortOrder?: number
+  sortOrder?: number,
+  level?: number
 ) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     const now = Date.now();
 
@@ -393,7 +420,7 @@ export async function updateItem(
       sql: `UPDATE script_items 
             SET title = ?, hearing_purpose = ?, content = ?, strategy_note = ?, next_move_hint = ?, 
                 category_id = ?, is_quick_response = ?, item_type = ?, target_situation_id = ?, 
-                trigger_check_item_id = ?, sort_order = COALESCE(?, sort_order), updated_at = ? 
+                trigger_check_item_id = ?, sort_order = COALESCE(?, sort_order), level = COALESCE(?, level), updated_at = ? 
             WHERE id = ?`,
       args: [
         title,
@@ -407,6 +434,7 @@ export async function updateItem(
         targetSituationId || null,
         triggerCheckItemId || null,
         sortOrder !== undefined ? sortOrder : null,
+        level !== undefined ? level : null,
         now,
         itemId,
       ],
@@ -419,6 +447,61 @@ export async function updateItem(
   } catch (error) {
     console.error("❌ アイテム更新エラー:", error);
     return { success: false, error: error instanceof Error ? error.message : "不明なエラー" };
+  }
+}
+
+// ========== スカウター表示設定（user_script_selections）==========
+
+/**
+ * トークのスカウター表示可否を切り替え。
+ * admin / viewer どちらも操作可能。
+ */
+export async function setScriptItemVisibility(
+  scriptItemId: string,
+  isVisible: boolean
+): Promise<{ success: boolean; error?: string }> {
+  const user = await getCurrentUser();
+  if (!user) return { success: false, error: "認証が必要です" };
+
+  try {
+    const now = Date.now();
+    await db.execute({
+      sql: `INSERT INTO user_script_selections (user_id, script_item_id, is_visible, created_at, updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            ON CONFLICT(user_id, script_item_id) DO UPDATE SET
+              is_visible = excluded.is_visible,
+              updated_at = excluded.updated_at`,
+      args: [user.id, scriptItemId, isVisible ? 1 : 0, now, now],
+    });
+    return { success: true };
+  } catch (error) {
+    console.error("❌ スカウター表示設定エラー:", error);
+    return { success: false, error: error instanceof Error ? error.message : "不明なエラー" };
+  }
+}
+
+/**
+ * 現在のユーザーのスカウター表示設定を取得。
+ * キー: script_item_id, 値: is_visible (レコードがない場合は true)
+ */
+export async function getScriptItemVisibilityForCurrentUser(): Promise<Record<string, boolean>> {
+  const user = await getCurrentUser();
+  if (!user) return {};
+
+  try {
+    const result = await db.execute({
+      sql: "SELECT script_item_id, is_visible FROM user_script_selections WHERE user_id = ?",
+      args: [user.id],
+    });
+
+    const map: Record<string, boolean> = {};
+    for (const row of result.rows) {
+      map[row.script_item_id as string] = (row.is_visible as number) === 1;
+    }
+    return map;
+  } catch (error) {
+    console.error("❌ スカウター表示設定取得エラー:", error);
+    return {};
   }
 }
 
@@ -459,6 +542,8 @@ export async function createItemResponse(
   nextItemId?: string,
   sortOrder: number = 0
 ) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     const id = `response_${Date.now()}`;
     const now = Date.now();
@@ -507,6 +592,8 @@ export async function updateItemResponse(
   responseText: string,
   nextItemId?: string
 ) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     await db.execute({
       sql: "UPDATE item_responses SET response_text = ?, next_item_id = ? WHERE id = ?",
@@ -524,6 +611,8 @@ export async function updateItemResponse(
 
 // 返答パターンを削除
 export async function deleteItemResponse(responseId: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     await db.execute({
       sql: "DELETE FROM item_responses WHERE id = ?",
@@ -563,6 +652,8 @@ export async function getAllDynamicCategories(): Promise<Category[]> {
 
 // カテゴリを作成
 export async function createDynamicCategory(name: string, color: string = "#6B7280") {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     const id = `cat_${Date.now()}`;
     const now = Date.now();
@@ -576,6 +667,34 @@ export async function createDynamicCategory(name: string, color: string = "#6B72
     return { success: true, categoryId: id };
   } catch (error) {
     console.error("❌ カテゴリ作成エラー:", error);
+    return { success: false, error: error instanceof Error ? error.message : "不明なエラー" };
+  }
+}
+
+// カテゴリを削除（紐づくトークの category_id を解除し、recording_categories も削除）
+export async function deleteDynamicCategory(categoryId: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
+  try {
+    // script_items の category_id を NULL に更新（紐付け解除）
+    await db.execute({
+      sql: "UPDATE script_items SET category_id = NULL WHERE category_id = ?",
+      args: [categoryId],
+    });
+    // recording_categories の紐付けを削除
+    await db.execute({
+      sql: "DELETE FROM recording_categories WHERE category_id = ?",
+      args: [categoryId],
+    });
+    // カテゴリ本体を削除
+    await db.execute({
+      sql: "DELETE FROM categories WHERE id = ?",
+      args: [categoryId],
+    });
+
+    return { success: true };
+  } catch (error) {
+    console.error("❌ カテゴリ削除エラー:", error);
     return { success: false, error: error instanceof Error ? error.message : "不明なエラー" };
   }
 }
@@ -604,6 +723,8 @@ export async function getAllTimelines(): Promise<Timeline[]> {
 
 // タイムラインを作成
 export async function createTimeline(title: string, description?: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     const id = `tl_${Date.now()}`;
     const now = Date.now();
@@ -624,6 +745,8 @@ export async function createTimeline(title: string, description?: string) {
 
 // タイムラインにトークを紐付け
 export async function addItemToTimeline(timelineId: string, scriptItemId: string, sortOrder: number = 0) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     const id = `tb_${Date.now()}`;
     const now = Date.now();
@@ -735,6 +858,8 @@ export async function getAllSituations(): Promise<Situation[]> {
 
 // 状況タグを作成
 export async function createSituation(name: string, description?: string, icon: string = "📌", color: string = "#3B82F6") {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     const id = `sit_${Date.now()}`;
     const now = Date.now();
@@ -755,6 +880,8 @@ export async function createSituation(name: string, description?: string, icon: 
 
 // 状況タグを更新
 export async function updateSituation(id: string, name: string, description?: string, icon?: string, color?: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     await db.execute({
       sql: "UPDATE situations SET name = ?, description = ?, icon = ?, color = ? WHERE id = ?",
@@ -772,6 +899,8 @@ export async function updateSituation(id: string, name: string, description?: st
 
 // 状況タグを削除
 export async function deleteSituation(id: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     await db.execute({
       sql: "DELETE FROM situations WHERE id = ?",
@@ -812,6 +941,8 @@ export async function getAllCheckItems(): Promise<CheckItem[]> {
 
 // チェック項目を作成
 export async function createCheckItem(name: string, description?: string, category?: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     const id = `chk_${Date.now()}`;
     const now = Date.now();
@@ -832,6 +963,8 @@ export async function createCheckItem(name: string, description?: string, catego
 
 // チェック項目を更新
 export async function updateCheckItem(id: string, name: string, description?: string, category?: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     await db.execute({
       sql: "UPDATE check_items SET name = ?, description = ?, category = ? WHERE id = ?",
@@ -849,6 +982,8 @@ export async function updateCheckItem(id: string, name: string, description?: st
 
 // チェック項目を削除
 export async function deleteCheckItem(id: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     await db.execute({
       sql: "DELETE FROM check_items WHERE id = ?",
@@ -896,6 +1031,8 @@ export async function getTimelineCheckItems(timelineId: string): Promise<CheckIt
 
 // タイムラインにチェック項目を紐付け
 export async function addCheckItemToTimeline(timelineId: string, checkItemId: string, sortOrder: number = 0) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     const id = `tci_${Date.now()}`;
     const now = Date.now();
@@ -916,6 +1053,8 @@ export async function addCheckItemToTimeline(timelineId: string, checkItemId: st
 
 // タイムラインからチェック項目の紐付けを削除
 export async function removeCheckItemFromTimeline(timelineId: string, checkItemId: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     await db.execute({
       sql: "DELETE FROM timeline_check_items WHERE timeline_id = ? AND check_item_id = ?",
@@ -957,6 +1096,8 @@ export async function getTimelinesBySituation(situationId: string): Promise<Time
 
 // タイムライン作成を拡張（situation_idを含む）
 export async function createTimelineWithSituation(title: string, situationId: string, description?: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     const id = `tl_${Date.now()}`;
     const now = Date.now();
@@ -977,6 +1118,8 @@ export async function createTimelineWithSituation(title: string, situationId: st
 
 // タイムライン削除
 export async function deleteTimeline(id: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     await db.execute({
       sql: "DELETE FROM timelines WHERE id = ?",
@@ -994,6 +1137,8 @@ export async function deleteTimeline(id: string) {
 
 // タイムラインからブロックを削除
 export async function removeBlockFromTimeline(timelineId: string, scriptItemId: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     await db.execute({
       sql: "DELETE FROM timeline_blocks WHERE timeline_id = ? AND script_item_id = ?",
@@ -1062,6 +1207,7 @@ export async function getComponentItems(): Promise<ScriptItem[]> {
       target_situation_id: row.target_situation_id as string,
       trigger_check_item_id: row.trigger_check_item_id as string,
       sort_order: row.sort_order as number,
+      level: (row.level as number) ?? 1,
       created_at: row.created_at as number,
       updated_at: row.updated_at as number,
     }));
@@ -1093,6 +1239,7 @@ export async function getComponentsBySituation(situationId: string): Promise<Scr
       target_situation_id: row.target_situation_id as string,
       trigger_check_item_id: row.trigger_check_item_id as string,
       sort_order: row.sort_order as number,
+      level: (row.level as number) ?? 1,
       created_at: row.created_at as number,
       updated_at: row.updated_at as number,
     }));
@@ -1124,6 +1271,7 @@ export async function getComponentsByCheckItem(checkItemId: string): Promise<Scr
       target_situation_id: row.target_situation_id as string,
       trigger_check_item_id: row.trigger_check_item_id as string,
       sort_order: row.sort_order as number,
+      level: (row.level as number) ?? 1,
       created_at: row.created_at as number,
       updated_at: row.updated_at as number,
     }));

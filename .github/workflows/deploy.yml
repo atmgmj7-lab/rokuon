@@ -1,0 +1,56 @@
+# Deploy: main への push で Vercel デプロイ & Extension ビルド
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  vercel:
+    name: Vercel Deploy
+    runs-on: ubuntu-latest
+    # Vercel は GitHub 連携で自動デプロイされるため、ここではビルド検証のみ
+    # 手動デプロイが必要な場合は VERCEL_TOKEN を Secrets に設定し、vercel --prod を実行
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build Next.js
+        run: npm run build
+        env:
+          TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL || 'libsql://placeholder.turso.io' }}
+          TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN || 'placeholder' }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY || 'sk-placeholder' }}
+          GOOGLE_AI_API_KEY: ${{ secrets.GOOGLE_AI_API_KEY || 'placeholder' }}
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID || 'placeholder' }}
+          R2_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID || 'placeholder' }}
+          R2_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY || 'placeholder' }}
+          R2_BUCKET_NAME: ${{ secrets.R2_BUCKET_NAME || 'placeholder' }}
+          R2_PUBLIC_URL: ${{ secrets.R2_PUBLIC_URL || 'https://placeholder.com' }}
+
+  extension:
+    name: Extension Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Package Extension
+        run: |
+          cd apps/extension
+          zip -r ../../extension.zip . -x "*.DS_Store"
+          cd ../..
+          mv extension.zip hybrid-scouter-extension.zip
+
+      - name: Upload Extension
+        uses: actions/upload-artifact@v4
+        with:
+          name: hybrid-scouter-extension-release
+          path: hybrid-scouter-extension.zip

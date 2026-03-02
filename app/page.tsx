@@ -1,10 +1,26 @@
 import AudioUploader from "@/src/components/recording/AudioUploader";
 import Link from "next/link";
+import StrategyBanner from "@/src/components/recording/StrategyBanner";
+import { getCurrentUser } from "@/src/actions/auth-actions";
 
-export default function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ company?: string; url?: string; strategy?: string }>;
+}) {
+  const params = await searchParams;
+  const user = await getCurrentUser();
+  const canEdit = user?.role === "admin";
+  const company = (params.company ?? "").trim();
+  const url = (params.url ?? "").trim();
+  const strategy = (params.strategy ?? "").trim();
+
   return (
     <div className="min-h-screen bg-[#FDFCFB] py-12">
       <div className="container mx-auto p-8">
+        {(company || url || strategy) && (
+          <StrategyBanner company={company} url={url} strategy={strategy} />
+        )}
         <header className="text-center mb-12">
           <h1 className="text-5xl font-bold mb-4 text-[#2D2B2A]">
             Recode
@@ -42,13 +58,15 @@ export default function Home() {
             </Link>
           </div>
 
-          {/* 録音機能 */}
+          {/* 録音機能（admin のみアップロード可能） */}
           <div className="max-w-3xl mx-auto bg-white rounded-2xl border border-stone-200/80 shadow-[0_2px_8px_rgba(0,0,0,0.02)] p-6 mb-8">
             <h2 className="text-xl font-bold text-[#2D2B2A] mb-4">音声アップロード</h2>
             <p className="text-sm text-[#827F7B] mb-4">
-              テレアポ音声をアップロードして自動文字起こしを行います
+              {canEdit
+                ? "テレアポ音声をアップロードして自動文字起こしを行います"
+                : "閲覧のみ可能です。アップロードは管理者にご依頼ください。"}
             </p>
-            <AudioUploader />
+            {canEdit && <AudioUploader />}
 
             {/* 履歴を見るボタン */}
             <div className="mt-6 pt-6 border-t border-stone-200/60">

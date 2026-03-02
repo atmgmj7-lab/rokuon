@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Noto_Serif_JP } from "next/font/google";
 import "./globals.css";
+import AppHeader from "@/src/components/layout/AppHeader";
 
 const notoSerifJP = Noto_Serif_JP({
   subsets: ["latin"],
@@ -21,6 +22,7 @@ export default function RootLayout({
   return (
     <html lang="ja" className={notoSerifJP.variable}>
       <body className="antialiased">
+        <AppHeader />
         {children}
       </body>
     </html>

@@ -20,6 +20,7 @@ export interface ScriptFolder {
 }
 
 // トークアイテム（実際のトーク内容）
+// level: 1=初級, 2=中級, 3=上級（部品トークの難易度）
 export interface ScriptItem {
   id: string;
   folder_id: string;
@@ -28,6 +29,7 @@ export interface ScriptItem {
   content: string; // 実際の聞き方
   strategy_note?: string; // トップの狙い
   next_move_hint?: string;
+  level?: number; // 1=初級, 2=中級, 3=上級
   category_id?: string; // 動的カテゴリ
   is_quick_response: number; // Quick Responseに表示するか（0 or 1）
   item_type: string; // 'main_scenario' or 'component'

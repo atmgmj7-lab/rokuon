@@ -27,6 +27,24 @@ export async function getSignedAudioUrl(r2Key: string): Promise<string> {
 }
 
 /**
+ * R2 への直接アップロード用の署名付き PUT URL を生成（有効期限: 15分）
+ * クライアントが Vercel を経由せずに大容量ファイルをアップロードするために使用
+ */
+export async function getPresignedPutUrl(
+  r2Key: string,
+  contentType: string
+): Promise<string> {
+  ensureR2Config();
+  const client = getR2Client();
+  const command = new PutObjectCommand({
+    Bucket: R2_BUCKET_NAME,
+    Key: r2Key,
+    ContentType: contentType,
+  });
+  return getSignedUrl(client, command, { expiresIn: 900 });
+}
+
+/**
  * R2接続に必要な環境変数が設定されているか確認
  */
 function ensureR2Config(): void {

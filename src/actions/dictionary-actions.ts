@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/src/lib/db";
+import { requireAdminOrError } from "@/src/actions/auth-actions";
 // import { revalidatePath } from "next/cache";
 
 export type DictionaryItem = {
@@ -27,6 +28,8 @@ export async function getDictionaries(): Promise<DictionaryItem[]> {
 }
 
 export async function addDictionary(formData: FormData) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     const term = formData.get("term") as string;
     const reading = (formData.get("reading") as string) || null;
@@ -53,6 +56,8 @@ export async function addDictionary(formData: FormData) {
 }
 
 export async function deleteDictionary(id: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     if (!id) {
       return { success: false, error: "IDが指定されていません" };

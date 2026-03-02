@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/src/lib/db";
+import { requireAdminOrError } from "@/src/actions/auth-actions";
 import { getDictionaries } from "@/src/actions/dictionary-actions";
 import { uploadToR2 } from "@/src/lib/r2";
 // import { revalidatePath } from "next/cache";
@@ -29,6 +30,8 @@ export async function addInlineVoiceFeedback(
   insertAfterIndex: number,
   formData: FormData
 ) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     const file = formData.get("audio") as File;
     if (!file) {
@@ -122,6 +125,8 @@ export async function deleteInlineVoiceFeedback(
   recordingId: string,
   indexToDelete: number
 ) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     const transcriptResult = await db.execute({
       sql: "SELECT id, content FROM transcripts WHERE recording_id = ? ORDER BY created_at DESC LIMIT 1",

@@ -10,9 +10,11 @@
 import { NextRequest, NextResponse } from "next/server";
 // import { revalidatePath } from "next/cache";
 import { db } from "@/src/lib/db";
+import { getSessionFromRequest } from "@/src/lib/auth-request";
 import { getDictionaries } from "@/src/actions/dictionary-actions";
 import { getCorrectionTerms } from "@/src/actions/correction-actions";
 import { mergeFeedbackIntoTranscript } from "@/src/actions/format-actions";
+import { transcribe } from "@/src/lib/transcribe";
 import { uploadToR2 } from "@/src/lib/r2";
 
 function getExtension(filename: string): string {
@@ -34,40 +36,20 @@ function getMimeType(extension: string): string {
   return mimeTypes[extension.toLowerCase()] || "audio/webm";
 }
 
-async function transcribeWithWhisper(
-  buffer: Buffer,
-  filename: string,
-  contentType: string,
-  prompt: string
-) {
-  const formData = new FormData();
-  formData.append("file", new Blob([new Uint8Array(buffer)], { type: contentType }), filename);
-  formData.append("model", "whisper-1");
-  formData.append("language", "ja");
-  formData.append("prompt", prompt);
-  formData.append("response_format", "verbose_json");
-
-  const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
-    },
-    body: formData,
-  });
-
-  if (!res.ok) {
-    const err = await res.text();
-    throw new Error(`Whisper API error: ${res.status} ${err}`);
-  }
-  return res.json();
-}
-
 export async function POST(request: NextRequest) {
   process.env.TMPDIR = "/tmp";
   process.env.TEMP = "/tmp";
   process.env.TMP = "/tmp";
 
   try {
+    const session = await getSessionFromRequest(request);
+    if (!session || session.role !== "admin") {
+      return NextResponse.json(
+        { success: false, error: "この操作は管理者のみ行えます" },
+        { status: 403 }
+      );
+    }
+
     const safeDecode = (s: string) => {
       try {
         return decodeURIComponent(s);
@@ -118,7 +100,7 @@ export async function POST(request: NextRequest) {
       "こんにちは。ここは〇〇と深掘りすべきです。恐れ入ります、もう少しヒアリングを増やしましょう。受注、ローン、リース、月額制、SaaS、アポ、クロージング、架電、テーマ、導入。";
     const whisperPrompt = `${basePrompt} ${customTerms}`.trim();
 
-    const transcription = await transcribeWithWhisper(
+    const transcription = await transcribe(
       buffer,
       objectName,
       contentType,

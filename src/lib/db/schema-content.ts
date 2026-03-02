@@ -25,6 +25,8 @@ CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   email TEXT UNIQUE NOT NULL,
   name TEXT,
+  password_hash TEXT,
+  role TEXT DEFAULT 'viewer',
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
@@ -108,6 +110,7 @@ CREATE TABLE IF NOT EXISTS script_items (
   content TEXT NOT NULL,
   strategy_note TEXT,
   next_move_hint TEXT,
+  level INTEGER DEFAULT 1,
   sort_order INTEGER DEFAULT 0,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL,

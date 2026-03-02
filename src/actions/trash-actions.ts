@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { db } from "@/src/lib/db";
+import { requireAdminOrError } from "@/src/actions/auth-actions";
 import { deleteFromR2 } from "@/src/lib/r2";
 
 const R2_BUCKET_NAME = process.env.R2_BUCKET_NAME || "";
@@ -74,6 +75,8 @@ export async function getTrashRecordings() {
 
 // ゴミ箱から復元
 export async function restoreRecording(recordingId: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     await db.execute({
       sql: "UPDATE recordings SET is_deleted = 0, updated_at = ? WHERE id = ?",
@@ -136,6 +139,8 @@ function stripAudioUrlFromTranscriptContent(content: string): string {
  * - 学習データ時: 音声は削除するが、テキスト（JSON・summary）は残す
  */
 export async function deleteRecordingPermanently(recordingId: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     const rowResult = await db.execute({
       sql: "SELECT id, r2_key, audio_url, is_training_data, parent_id FROM recordings WHERE id = ? AND is_deleted = 1",
@@ -248,6 +253,8 @@ export async function deleteRecordingPermanently(recordingId: string) {
 
 // ゴミ箱を空にする（全件完全削除）
 export async function emptyTrash() {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     const trashItems = await getTrashRecordings();
     for (const item of trashItems) {

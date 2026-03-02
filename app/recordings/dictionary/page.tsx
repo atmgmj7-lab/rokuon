@@ -3,6 +3,7 @@ import {
   addDictionary,
   deleteDictionary,
 } from "@/src/actions/dictionary-actions";
+import { getCurrentUser } from "@/src/actions/auth-actions";
 import Link from "next/link";
 
 const CATEGORY_OPTIONS = [
@@ -19,7 +20,11 @@ const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export default async function DictionaryPage() {
-  const dictionaries = await getDictionaries();
+  const [dictionaries, user] = await Promise.all([
+    getDictionaries(),
+    getCurrentUser(),
+  ]);
+  const canEdit = user?.role === "admin";
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-stone-50 to-stone-100 py-12">
@@ -42,7 +47,8 @@ export default async function DictionaryPage() {
           </p>
         </div>
 
-        {/* 追加フォーム */}
+        {/* 追加フォーム（admin のみ） */}
+        {canEdit && (
         <div className="bg-white rounded-xl shadow-lg p-8 mb-8">
           <h2 className="text-xl font-bold text-stone-800 mb-6">
             用語を追加
@@ -112,6 +118,7 @@ export default async function DictionaryPage() {
             </button>
           </form>
         </div>
+        )}
 
         {/* 登録済み用語一覧 */}
         <div className="bg-white rounded-xl shadow-lg overflow-hidden">
@@ -166,6 +173,7 @@ export default async function DictionaryPage() {
                         )}
                       </td>
                       <td className="px-6 py-4 text-right">
+                        {canEdit && (
                         <form
                           action={async () => {
                             "use server";
@@ -180,6 +188,7 @@ export default async function DictionaryPage() {
                             削除
                           </button>
                         </form>
+                        )}
                       </td>
                     </tr>
                   ))}

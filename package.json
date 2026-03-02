@@ -9,13 +9,19 @@
     "lint": "next lint",
     "migrate": "tsx scripts/migrate.ts",
     "migrate:advanced": "tsx scripts/migrate-advanced.ts",
-    "migrate:audio-categories": "tsx scripts/migrate-audio-categories.ts"
+    "migrate:audio-categories": "tsx scripts/migrate-audio-categories.ts",
+    "migrate:role-level": "tsx scripts/migrate-v17-role-level.ts",
+    "migrate:users-password": "tsx scripts/migrate-v18-users-password.ts",
+    "migrate:visibility": "tsx scripts/migrate-v19-user-script-selections.ts",
+    "seed:admin": "tsx scripts/create-admin.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.993.0",
     "@aws-sdk/s3-request-presigner": "^3.994.0",
     "@google/generative-ai": "^0.24.1",
     "@libsql/client": "^0.14.0",
+    "bcryptjs": "^3.0.3",
+    "jose": "^6.1.3",
     "next": "^15.1.6",
     "openai": "^6.21.0",
     "react": "^19.0.0",
@@ -23,6 +29,7 @@
     "reactflow": "^11.11.4"
   },
   "devDependencies": {
+    "@types/bcryptjs": "^2.4.6",
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",

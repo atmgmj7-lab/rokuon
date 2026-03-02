@@ -1,6 +1,7 @@
 "use server";
 
 import { db } from "@/src/lib/db";
+import { requireAdminOrError } from "@/src/actions/auth-actions";
 
 export type AudioCategory = {
   id: string;
@@ -29,6 +30,8 @@ export async function getAllAudioCategories(): Promise<AudioCategory[]> {
 }
 
 export async function createAudioCategory(name: string, color?: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     const id = `acat_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
     const now = Date.now();
@@ -44,6 +47,8 @@ export async function createAudioCategory(name: string, color?: string) {
 }
 
 export async function updateAudioCategory(id: string, name: string, color?: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     await db.execute({
       sql: "UPDATE audio_categories SET name = ?, color = ? WHERE id = ?",
@@ -57,6 +62,8 @@ export async function updateAudioCategory(id: string, name: string, color?: stri
 }
 
 export async function deleteAudioCategory(id: string) {
+  const authErr = await requireAdminOrError();
+  if (authErr) return authErr;
   try {
     await db.execute({
       sql: "UPDATE recordings SET audio_category_id = NULL WHERE audio_category_id = ?",

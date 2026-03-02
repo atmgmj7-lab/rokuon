@@ -26,7 +26,7 @@ function getTypeLabel(type: string): string {
   }
 }
 
-export default function TrashClient({ items: initialItems }: { items: TrashRecording[] }) {
+export default function TrashClient({ items: initialItems, canEdit = true }: { items: TrashRecording[]; canEdit?: boolean }) {
   const [items, setItems] = useState(initialItems);
   const [restoringId, setRestoringId] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -92,6 +92,7 @@ export default function TrashClient({ items: initialItems }: { items: TrashRecor
 
   return (
     <div className="space-y-6">
+      {canEdit && (
       <div className="flex justify-end">
         <button
           type="button"
@@ -102,6 +103,7 @@ export default function TrashClient({ items: initialItems }: { items: TrashRecor
           {emptying ? "削除中..." : "ゴミ箱を空にする"}
         </button>
       </div>
+      )}
 
       <div className="space-y-4">
         {items.map((item) => (
@@ -126,6 +128,7 @@ export default function TrashClient({ items: initialItems }: { items: TrashRecor
                 {Math.floor(item.duration / 60)}分{item.duration % 60}秒 · {formatDate(item.updated_at)}
               </p>
             </div>
+            {canEdit && (
             <div className="flex items-center gap-2">
               <button
                 type="button"
@@ -144,6 +147,7 @@ export default function TrashClient({ items: initialItems }: { items: TrashRecor
                 {deletingId === item.id ? "削除中..." : "完全に削除"}
               </button>
             </div>
+            )}
           </div>
         ))}
       </div>
