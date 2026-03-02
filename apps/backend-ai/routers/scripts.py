@@ -117,4 +117,5 @@ async def get_scripts(user_id: Optional[str] = Query(None, description="ユー�
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception("get_scripts failed: %s", e)
         raise HTTPException(status_code=500, detail=str(e))
