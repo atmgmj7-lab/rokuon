@@ -45,6 +45,7 @@ import type {
   Category,
   Timeline,
 } from "@/src/types/workspace";
+import Link from "next/link";
 import LearningDataManager from "@/src/components/workspace/LearningDataManager";
 import HearingManager from "@/src/components/workspace/HearingManager";
 import UserManager from "@/src/components/workspace/UserManager";
@@ -335,7 +336,8 @@ export default function WorkspacePage() {
     <div className="min-h-screen bg-[#FDFCFB]">
       {/* ページタイトル（共通ヘッダーの下・重複要素なし） */}
       <div className="bg-[#FDFCFB] px-4 sm:px-6 py-3 border-b border-stone-200/60">
-        <div>
+        <div className="flex items-start justify-between gap-4">
+          <div>
           <h1 className="text-xl sm:text-2xl font-bold text-[#2D2B2A]">ワークスペース（統合版）</h1>
           <p className="text-xs sm:text-sm text-[#827F7B] mt-0.5">
             すべての設定を一箇所で管理 | 自動保存対応
@@ -361,6 +363,13 @@ export default function WorkspacePage() {
               </div>
             </div>
           )}
+          </div>
+          <Link
+            href="/"
+            className="shrink-0 px-4 py-2 bg-white border border-stone-200 text-stone-600 rounded-lg text-sm font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
+          >
+            ← ホーム
+          </Link>
         </div>
       </div>
 
