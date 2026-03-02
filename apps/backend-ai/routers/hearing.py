@@ -23,6 +23,7 @@ def _get_db():
 
 
 @router.get("")
+@router.get("/")  # 末尾スラッシュ対応
 async def get_hearing():
     """
     アポヒアリングのカテゴリと項目を取得。

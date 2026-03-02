@@ -29,6 +29,7 @@ def _get_db():
 
 
 @router.get("")
+@router.get("/")  # 末尾スラッシュ対応
 async def get_scripts(user_id: str | None = Query(None, description="ユーザーID（指定時は user_script_selections で非表示を除外）")):
     """
     基本シナリオと部品トークを取得。
