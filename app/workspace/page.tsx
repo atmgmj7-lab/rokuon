@@ -45,7 +45,6 @@ import type {
   Category,
   Timeline,
 } from "@/src/types/workspace";
-import Link from "next/link";
 import LearningDataManager from "@/src/components/workspace/LearningDataManager";
 import HearingManager from "@/src/components/workspace/HearingManager";
 import UserManager from "@/src/components/workspace/UserManager";
@@ -334,18 +333,16 @@ export default function WorkspacePage() {
 
   return (
     <div className="min-h-screen bg-[#FDFCFB]">
-      {/* ページタイトル（共通ヘッダーの下） */}
+      {/* ページタイトル（共通ヘッダーの下・重複要素なし） */}
       <div className="bg-[#FDFCFB] px-4 sm:px-6 py-3 border-b border-stone-200/60">
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="text-xl sm:text-2xl font-bold text-[#2D2B2A]">ワークスペース（統合版）</h1>
-            <p className="text-xs sm:text-sm text-[#827F7B] mt-0.5">
-              すべての設定を一箇所で管理 | 自動保存対応
-            </p>
-          </div>
-          <div className="flex items-center gap-2 sm:gap-3">
-            {selectedItem && (
-              <div className="flex items-center gap-2 bg-white border border-stone-200 px-3 py-1.5 rounded-lg shrink-0">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-[#2D2B2A]">ワークスペース（統合版）</h1>
+          <p className="text-xs sm:text-sm text-[#827F7B] mt-0.5">
+            すべての設定を一箇所で管理 | 自動保存対応
+          </p>
+          {selectedItem && (
+            <div className="flex items-center gap-2 mt-2">
+              <div className="inline-flex items-center gap-2 bg-white border border-stone-200 px-3 py-1.5 rounded-lg shrink-0">
                 {saveStatus === "saving" && (
                   <>
                     <div className="animate-spin h-3.5 w-3.5 border-2 border-stone-400 border-t-transparent rounded-full" />
@@ -362,14 +359,8 @@ export default function WorkspacePage() {
                   <span className="text-xs sm:text-sm font-medium text-[#827F7B]">編集可能</span>
                 )}
               </div>
-            )}
-            <Link
-              href="/call"
-              className="px-3 py-1.5 sm:px-4 sm:py-2 bg-white border border-stone-200 text-stone-600 rounded-lg text-xs sm:text-sm font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors shrink-0"
-            >
-              コール画面へ
-            </Link>
-          </div>
+            </div>
+          )}
         </div>
       </div>
 
