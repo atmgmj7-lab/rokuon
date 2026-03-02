@@ -13,6 +13,15 @@ const DEFAULT_ENDPOINT =
 // 録音アプリ（ワークスペース）のベースURL
 const APP_BASE_URL = import.meta.env.VITE_APP_BASE_URL || "http://127.0.0.1:3002";
 const DEFAULT_INDUSTRY = "屋根工事";
+
+/** endpoint のサニタイズ（改行・空白・末尾スラッシュを除去） */
+function cleanEndpointUrl(raw: string): string {
+  return raw
+    .trim()
+    .replace(/[\r\n]/g, "")
+    .replace(/\/+$/, "");
+}
+
 const INDUSTRY_OPTIONS = [
   "屋根工事",
   "外壁塗装",
@@ -191,15 +200,15 @@ export default function App() {
     ]);
     if (stored.extractedRegion) setRegion(stored.extractedRegion);
     if (stored.extractedUrl) setUrl(stored.extractedUrl);
-    if (stored.apiEndpoint) setEndpoint(stored.apiEndpoint);
-    if (stored.appBaseUrl) setAppBaseUrl(stored.appBaseUrl);
+    if (stored.apiEndpoint) setEndpoint(cleanEndpointUrl(stored.apiEndpoint) || DEFAULT_ENDPOINT);
+    if (stored.appBaseUrl) setAppBaseUrl(cleanEndpointUrl(stored.appBaseUrl) || APP_BASE_URL);
     const t = (stored[SCOUTER_TOKEN_KEY] as string) || null;
     console.log("[スカウター] loadStored: token=", t ? `あり(長さ=${t.length})` : "なし");
     setToken(t);
   }, []);
 
   const fetchHearing = useCallback(async (baseUrl: string): Promise<HearingData | null> => {
-    const base = baseUrl.replace(/\/$/, "");
+    const base = cleanEndpointUrl(baseUrl);
     const url = `${base}/hearing`;
     try {
       console.log("[スカウター] fetchHearing: リクエストURL=", url);
@@ -231,7 +240,7 @@ export default function App() {
   }, []);
 
   const fetchScripts = useCallback(async (baseUrl: string): Promise<{ data: ScriptsData | null; status: "synced" | "offline" }> => {
-    const base = baseUrl.replace(/\/$/, "");
+    const base = cleanEndpointUrl(baseUrl);
     const url = `${base}/scripts`;
     try {
       console.log("[スカウター] fetchScripts: リクエストURL=", url);
@@ -285,7 +294,7 @@ export default function App() {
   }, []);
 
   const runSync = useCallback(async () => {
-    const base = (endpoint || DEFAULT_ENDPOINT).replace(/\/$/, "");
+    const base = cleanEndpointUrl(endpoint || DEFAULT_ENDPOINT);
     try {
       const [scriptsResult, hearing] = await Promise.all([
         fetchScripts(base),
@@ -312,7 +321,7 @@ export default function App() {
     let cancelled = false;
     const load = async () => {
       setScriptsSyncStatus("loading");
-      const base = (endpoint || DEFAULT_ENDPOINT).replace(/\/$/, "");
+      const base = cleanEndpointUrl(endpoint || DEFAULT_ENDPOINT);
       console.log("[スカウター] scripts/hearing 取得開始: baseUrl=", base);
       const [scriptsResult, hearing] = await Promise.all([
         fetchScripts(base),
@@ -398,8 +407,8 @@ export default function App() {
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
     try {
       const base = token
-        ? (appBaseUrl || APP_BASE_URL).replace(/\/$/, "")
-        : (endpoint || DEFAULT_ENDPOINT).replace(/\/$/, "");
+        ? cleanEndpointUrl(appBaseUrl || APP_BASE_URL)
+        : cleanEndpointUrl(endpoint || DEFAULT_ENDPOINT);
       const urlPath = token ? `${base}/api/ext/scout` : `${base}/scout`;
       const headers: Record<string, string> = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -463,14 +472,16 @@ export default function App() {
     const params = new URLSearchParams();
     if (url) params.set("url", url);
     if (result?.strategy) params.set("strategy", result.strategy.slice(0, 300));
-    const base = (appBaseUrl || APP_BASE_URL).replace(/\/$/, "");
+    const base = cleanEndpointUrl(appBaseUrl || APP_BASE_URL);
     chrome.tabs.create({ url: `${base}/?${params.toString()}` });
   };
 
   const saveConfig = async () => {
+    const cleanedEndpoint = cleanEndpointUrl(endpoint || DEFAULT_ENDPOINT) || DEFAULT_ENDPOINT;
+    setEndpoint(cleanedEndpoint);
     await chrome.storage.local.set({
-      apiEndpoint: endpoint || DEFAULT_ENDPOINT,
-      appBaseUrl: appBaseUrl || APP_BASE_URL,
+      apiEndpoint: cleanedEndpoint,
+      appBaseUrl: cleanEndpointUrl(appBaseUrl || APP_BASE_URL) || APP_BASE_URL,
     });
   };
 

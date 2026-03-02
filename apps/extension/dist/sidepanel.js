@@ -7161,6 +7161,9 @@ function Login({ onLoginSuccess }) {
 const DEFAULT_ENDPOINT = "https://hybrid-scouter-api.onrender.com";
 const APP_BASE_URL = "https://rokuon-ivory.vercel.app";
 const DEFAULT_INDUSTRY = "屋根工事";
+function cleanEndpointUrl(raw) {
+  return raw.trim().replace(/[\r\n]/g, "").replace(/\/+$/, "");
+}
 const INDUSTRY_OPTIONS = [
   "屋根工事",
   "外壁塗装",
@@ -7277,14 +7280,14 @@ function App() {
     ]);
     if (stored.extractedRegion) setRegion(stored.extractedRegion);
     if (stored.extractedUrl) setUrl(stored.extractedUrl);
-    if (stored.apiEndpoint) setEndpoint(stored.apiEndpoint);
-    if (stored.appBaseUrl) setAppBaseUrl(stored.appBaseUrl);
+    if (stored.apiEndpoint) setEndpoint(cleanEndpointUrl(stored.apiEndpoint) || DEFAULT_ENDPOINT);
+    if (stored.appBaseUrl) setAppBaseUrl(cleanEndpointUrl(stored.appBaseUrl) || APP_BASE_URL);
     const t = stored[SCOUTER_TOKEN_KEY] || null;
     console.log("[スカウター] loadStored: token=", t ? `あり(長さ=${t.length})` : "なし");
     setToken(t);
   }, []);
   const fetchHearing = reactExports.useCallback(async (baseUrl) => {
-    const base = baseUrl.replace(/\/$/, "");
+    const base = cleanEndpointUrl(baseUrl);
     const url2 = `${base}/hearing`;
     try {
       console.log("[スカウター] fetchHearing: リクエストURL=", url2);
@@ -7311,7 +7314,7 @@ function App() {
     }
   }, []);
   const fetchScripts = reactExports.useCallback(async (baseUrl) => {
-    const base = baseUrl.replace(/\/$/, "");
+    const base = cleanEndpointUrl(baseUrl);
     const url2 = `${base}/scripts`;
     try {
       console.log("[スカウター] fetchScripts: リクエストURL=", url2);
@@ -7358,7 +7361,7 @@ function App() {
   }, []);
   const runSync = reactExports.useCallback(async () => {
     var _a2, _b2;
-    const base = (endpoint || DEFAULT_ENDPOINT).replace(/\/$/, "");
+    const base = cleanEndpointUrl(endpoint || DEFAULT_ENDPOINT);
     try {
       const [scriptsResult, hearing] = await Promise.all([
         fetchScripts(base),
@@ -7381,7 +7384,7 @@ function App() {
     const load = async () => {
       var _a2, _b2;
       setScriptsSyncStatus("loading");
-      const base = (endpoint || DEFAULT_ENDPOINT).replace(/\/$/, "");
+      const base = cleanEndpointUrl(endpoint || DEFAULT_ENDPOINT);
       console.log("[スカウター] scripts/hearing 取得開始: baseUrl=", base);
       const [scriptsResult, hearing] = await Promise.all([
         fetchScripts(base),
@@ -7457,7 +7460,7 @@ function App() {
     setProgressIndex(0);
     let timeoutId;
     try {
-      const base = token ? (appBaseUrl || APP_BASE_URL).replace(/\/$/, "") : (endpoint || DEFAULT_ENDPOINT).replace(/\/$/, "");
+      const base = token ? cleanEndpointUrl(appBaseUrl || APP_BASE_URL) : cleanEndpointUrl(endpoint || DEFAULT_ENDPOINT);
       const urlPath = token ? `${base}/api/ext/scout` : `${base}/scout`;
       const headers = { "Content-Type": "application/json" };
       if (token) headers["Authorization"] = `Bearer ${token}`;
@@ -7513,13 +7516,15 @@ function App() {
     const params = new URLSearchParams();
     if (url) params.set("url", url);
     if (result == null ? void 0 : result.strategy) params.set("strategy", result.strategy.slice(0, 300));
-    const base = (appBaseUrl || APP_BASE_URL).replace(/\/$/, "");
+    const base = cleanEndpointUrl(appBaseUrl || APP_BASE_URL);
     chrome.tabs.create({ url: `${base}/?${params.toString()}` });
   };
   const saveConfig = async () => {
+    const cleanedEndpoint = cleanEndpointUrl(endpoint || DEFAULT_ENDPOINT) || DEFAULT_ENDPOINT;
+    setEndpoint(cleanedEndpoint);
     await chrome.storage.local.set({
-      apiEndpoint: endpoint || DEFAULT_ENDPOINT,
-      appBaseUrl: appBaseUrl || APP_BASE_URL
+      apiEndpoint: cleanedEndpoint,
+      appBaseUrl: cleanEndpointUrl(appBaseUrl || APP_BASE_URL) || APP_BASE_URL
     });
   };
   const handleUrlDrop = (e) => {
