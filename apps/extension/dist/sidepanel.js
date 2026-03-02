@@ -7291,7 +7291,12 @@ function App() {
     const url2 = `${base}/hearing`;
     try {
       console.log("[スカウター] fetchHearing: リクエストURL=", url2);
-      const res = await fetch(url2, { method: "GET" });
+      const res = await fetch(url2, {
+        method: "GET",
+        mode: "cors",
+        credentials: "omit",
+        headers: { Accept: "application/json" }
+      });
       if (!res.ok) {
         const body = await res.text().catch(() => "");
         const bodyPreview = res.status === 500 ? body : body.slice(0, 300);
@@ -7319,7 +7324,12 @@ function App() {
     const url2 = `${base}/scripts`;
     try {
       console.log("[スカウター] fetchScripts: リクエストURL=", url2);
-      const res = await fetch(url2, { method: "GET" });
+      const res = await fetch(url2, {
+        method: "GET",
+        mode: "cors",
+        credentials: "omit",
+        headers: { Accept: "application/json" }
+      });
       if (!res.ok) {
         const body = await res.text().catch(() => "");
         const bodyPreview = res.status === 500 ? body : body.slice(0, 300);

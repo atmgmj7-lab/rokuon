@@ -212,7 +212,12 @@ export default function App() {
     const url = `${base}/hearing`;
     try {
       console.log("[スカウター] fetchHearing: リクエストURL=", url);
-      const res = await fetch(url, { method: "GET" });
+      const res = await fetch(url, {
+        method: "GET",
+        mode: "cors",
+        credentials: "omit",
+        headers: { Accept: "application/json" },
+      });
       if (!res.ok) {
         const body = await res.text().catch(() => "");
         const bodyPreview = res.status === 500 ? body : body.slice(0, 300);
@@ -245,7 +250,12 @@ export default function App() {
     const url = `${base}/scripts`;
     try {
       console.log("[スカウター] fetchScripts: リクエストURL=", url);
-      const res = await fetch(url, { method: "GET" });
+      const res = await fetch(url, {
+        method: "GET",
+        mode: "cors",
+        credentials: "omit",
+        headers: { Accept: "application/json" },
+      });
       if (!res.ok) {
         const body = await res.text().catch(() => "");
         const bodyPreview = res.status === 500 ? body : body.slice(0, 300);
