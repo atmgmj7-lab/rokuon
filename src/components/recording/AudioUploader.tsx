@@ -2,9 +2,8 @@
 
 import { useState, useRef } from "react";
 
-// ローカル開発: 127.0.0.1 の方が安定するためデフォルトに使用
-// 本番: NEXT_PUBLIC_API_URL に Render 等のバックエンド URL を設定
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8765";
+// 本番: NEXT_PUBLIC_API_URL が未設定時は Render バックエンドへ
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || "https://rokuon.onrender.com";
 
 function buildRawTranscript(
   segments: { start?: number; end?: number; text?: string }[],

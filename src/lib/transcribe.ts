@@ -5,7 +5,7 @@
  * 失敗時または未設定時は OpenAI Whisper にフォールバック。
  */
 
-const MLX_WHISPER_URL = process.env.MLX_WHISPER_URL || "http://localhost:8765";
+const MLX_WHISPER_URL = process.env.MLX_WHISPER_URL || process.env.NEXT_PUBLIC_API_URL || "https://rokuon.onrender.com";
 const USE_MLX_WHISPER = process.env.USE_MLX_WHISPER === "true";
 
 export type TranscriptionResult = {
