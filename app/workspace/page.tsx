@@ -49,7 +49,7 @@ import Link from "next/link";
 import LearningDataManager from "@/src/components/workspace/LearningDataManager";
 import HearingManager from "@/src/components/workspace/HearingManager";
 import UserManager from "@/src/components/workspace/UserManager";
-import { getCurrentUser, logoutUser } from "@/src/actions/auth-actions";
+import { getCurrentUser } from "@/src/actions/auth-actions";
 
 type MenuTab =
   | "main_scenario"
@@ -334,62 +334,41 @@ export default function WorkspacePage() {
 
   return (
     <div className="min-h-screen bg-[#FDFCFB]">
-      {/* ヘッダー */}
-      <div className="bg-[#FDFCFB] px-6 py-4 border-b border-stone-200/60">
-        <div className="flex items-center justify-between">
+      {/* ページタイトル（共通ヘッダーの下） */}
+      <div className="bg-[#FDFCFB] px-4 sm:px-6 py-3 border-b border-stone-200/60">
+        <div className="flex items-center justify-between gap-4 flex-wrap">
           <div>
-            <h1 className="text-2xl font-bold text-[#2D2B2A]">ワークスペース（統合版）</h1>
-            <p className="text-sm text-[#827F7B] mt-1">
+            <h1 className="text-xl sm:text-2xl font-bold text-[#2D2B2A]">ワークスペース（統合版）</h1>
+            <p className="text-xs sm:text-sm text-[#827F7B] mt-0.5">
               すべての設定を一箇所で管理 | 自動保存対応
             </p>
           </div>
-          <div className="flex items-center gap-4">
-            {currentUser && (
-              <span className="text-sm text-[#827F7B]">
-                {currentUser.email}
-                <span className="ml-2 text-stone-400">({currentUser.role})</span>
-              </span>
-            )}
-            {/* 保存状態インジケーター */}
+          <div className="flex items-center gap-2 sm:gap-3">
             {selectedItem && (
-              <div className="flex items-center gap-2 bg-white border border-stone-200 px-4 py-2 rounded-lg">
+              <div className="flex items-center gap-2 bg-white border border-stone-200 px-3 py-1.5 rounded-lg shrink-0">
                 {saveStatus === "saving" && (
                   <>
-                    <div className="animate-spin h-4 w-4 border-2 border-stone-400 border-t-transparent rounded-full" />
-                    <span className="text-sm font-medium text-[#2D2B2A]">保存中...</span>
+                    <div className="animate-spin h-3.5 w-3.5 border-2 border-stone-400 border-t-transparent rounded-full" />
+                    <span className="text-xs sm:text-sm font-medium text-[#2D2B2A]">保存中...</span>
                   </>
                 )}
                 {saveStatus === "saved" && (
                   <>
-                    <span className="text-[#827F7B] text-xl">✓</span>
-                    <span className="text-sm font-medium text-[#2D2B2A]">保存完了</span>
+                    <span className="text-[#827F7B] text-base">✓</span>
+                    <span className="text-xs sm:text-sm font-medium text-[#2D2B2A]">保存完了</span>
                   </>
                 )}
                 {saveStatus === "idle" && (
-                  <span className="text-sm font-medium text-[#827F7B]">編集可能</span>
+                  <span className="text-xs sm:text-sm font-medium text-[#827F7B]">編集可能</span>
                 )}
               </div>
             )}
             <Link
               href="/call"
-              className="px-4 py-2 bg-white border border-stone-200 text-stone-600 rounded-lg text-sm font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
+              className="px-3 py-1.5 sm:px-4 sm:py-2 bg-white border border-stone-200 text-stone-600 rounded-lg text-xs sm:text-sm font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors shrink-0"
             >
               コール画面へ
             </Link>
-            <Link
-              href="/"
-              className="px-4 py-2 bg-white border border-stone-200 text-stone-600 rounded-lg text-sm font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
-            >
-              ← ホーム
-            </Link>
-            <form action={logoutUser}>
-              <button
-                type="submit"
-                className="px-4 py-2 bg-white border border-stone-200 text-stone-600 rounded-lg text-sm font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
-              >
-                ログアウト
-              </button>
-            </form>
           </div>
         </div>
       </div>
