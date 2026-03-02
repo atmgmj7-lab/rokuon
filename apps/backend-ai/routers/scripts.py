@@ -9,6 +9,8 @@ GET /scripts: 基本シナリオと部品トークを取得
 import logging
 import os
 from collections import defaultdict
+from typing import Optional
+
 from fastapi import APIRouter, HTTPException, Query
 
 logger = logging.getLogger(__name__)
@@ -33,7 +35,7 @@ def _get_db():
 
 @router.get(SCRIPTS_PATH)
 @router.get(SCRIPTS_PATH + "/")  # 末尾スラッシュ対応
-async def get_scripts(user_id: str | None = Query(None, description="ユーザーID（指定時は user_script_selections で非表示を除外）")):
+async def get_scripts(user_id: Optional[str] = Query(None, description="ユーザーID（指定時は user_script_selections で非表示を除外）")):
     """
     基本シナリオと部品トークを取得。
     - base_talk → base_scenarios

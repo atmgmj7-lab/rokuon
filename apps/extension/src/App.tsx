@@ -4,6 +4,7 @@ import Login from "./components/Login";
 // API エンドポイント: .env またはビルド時の環境変数で上書き可能
 // VITE_API_ENDPOINT: バックエンド API URL（本番: https://api.yourdomain.com 等に書き換え）
 // VITE_DEFAULT_ENDPOINT: 後方互換のエイリアス
+// 本番: Render に固定（環境変数で上書き可能）
 const DEFAULT_ENDPOINT =
   import.meta.env.VITE_API_ENDPOINT ||
   import.meta.env.VITE_DEFAULT_ENDPOINT ||
