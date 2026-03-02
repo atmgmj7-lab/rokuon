@@ -215,11 +215,12 @@ export default function App() {
       const res = await fetch(url, { method: "GET" });
       if (!res.ok) {
         const body = await res.text().catch(() => "");
+        const bodyPreview = res.status === 500 ? body : body.slice(0, 300);
         console.error("[スカウター] hearing API 取得失敗:", {
           url,
           status: res.status,
           statusText: res.statusText,
-          body: body.slice(0, 300),
+          body: bodyPreview,
         });
         return null;
       }
@@ -247,11 +248,12 @@ export default function App() {
       const res = await fetch(url, { method: "GET" });
       if (!res.ok) {
         const body = await res.text().catch(() => "");
+        const bodyPreview = res.status === 500 ? body : body.slice(0, 300);
         console.error("[スカウター] scripts API 取得失敗:", {
           url,
           status: res.status,
           statusText: res.statusText,
-          body: body.slice(0, 300),
+          body: bodyPreview,
         });
         return { data: null, status: "offline" };
       }

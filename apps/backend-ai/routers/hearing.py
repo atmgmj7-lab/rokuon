@@ -5,6 +5,7 @@ GET /hearing: カテゴリとヒアリング項目を取得
 - ワークスペースで作成したアポヒアリングデータを拡張機能に提供
 """
 import os
+import traceback
 from fastapi import APIRouter, HTTPException
 
 router = APIRouter()
@@ -71,4 +72,8 @@ async def get_hearing():
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        tb = traceback.format_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"{type(e).__name__}: {e}\n\n{tb}",
+        )

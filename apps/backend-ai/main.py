@@ -22,6 +22,7 @@ from fastapi import FastAPI, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
+from starlette.responses import JSONResponse
 from pydantic import BaseModel
 from typing import Optional
 
@@ -32,20 +33,25 @@ logger = logging.getLogger(__name__)
 
 
 class ExceptionLoggingMiddleware(BaseHTTPMiddleware):
-    """全例外をキャッチして詳細をログ出力（500 デバッグ用）"""
+    """全例外をキャッチし、エラー詳細をJSONでクライアントに返す（デバッグ用）"""
 
     async def dispatch(self, request: Request, call_next):
         try:
             return await call_next(request)
-        except Exception as exc:
-            logger.error(
-                "Unhandled exception: %s\n%s",
-                exc,
-                traceback.format_exc(),
-                exc_info=True,
-            )
-            print(f"[ERROR] {exc}\n{traceback.format_exc()}")
+        except HTTPException:
             raise
+        except Exception as exc:
+            tb = traceback.format_exc()
+            logger.error("Unhandled exception: %s\n%s", exc, tb)
+            print(f"[ERROR] {exc}\n{tb}")
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "detail": str(exc),
+                    "type": type(exc).__name__,
+                    "traceback": tb.split("\n"),
+                },
+            )
 
 
 @asynccontextmanager

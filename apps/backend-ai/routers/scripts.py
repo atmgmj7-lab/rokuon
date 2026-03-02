@@ -8,6 +8,7 @@ GET /scripts: 基本シナリオと部品トークを取得
 """
 import logging
 import os
+import traceback
 from collections import defaultdict
 from typing import Optional
 
@@ -117,5 +118,10 @@ async def get_scripts(user_id: Optional[str] = Query(None, description="ユー�
     except HTTPException:
         raise
     except Exception as e:
+        tb = traceback.format_exc()
         logger.exception("get_scripts failed: %s", e)
-        raise HTTPException(status_code=500, detail=str(e))
+        # デバッグ用: クライアントにエラー詳細を返す
+        raise HTTPException(
+            status_code=500,
+            detail=f"{type(e).__name__}: {e}\n\n{tb}",
+        )
