@@ -8,15 +8,15 @@ import { getSessionFromRequest } from "@/src/lib/auth-request";
 const PYTHON_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8765";
 
 export async function POST(request: NextRequest) {
-  const session = await getSessionFromRequest(request);
-  if (!session) {
-    return NextResponse.json(
-      { success: false, error: "認証が必要です" },
-      { status: 401 }
-    );
-  }
-
   try {
+    const session = await getSessionFromRequest(request);
+    if (!session) {
+      return NextResponse.json(
+        { success: false, error: "認証が必要です" },
+        { status: 401 }
+      );
+    }
+
     const body = await request.json();
     const base = PYTHON_API_URL.replace(/\/$/, "");
     const res = await fetch(`${base}/scout`, {
@@ -35,10 +35,18 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(data);
   } catch (error) {
-    console.error("❌ ext/scout プロキシエラー:", error);
+    const err = error instanceof Error ? error : new Error(String(error));
+    const detail = err.message || String(error);
+    const type = err.name || "Error";
+    console.error("❌ ext/scout プロキシエラー:", type, detail, err);
     return NextResponse.json(
-      { success: false, error: "バックエンドに接続できません" },
-      { status: 502 }
+      {
+        success: false,
+        error: detail,
+        type,
+        hint: detail.includes("API") ? "APIキー不足の可能性" : detail.includes("fetch") ? "バックエンド接続失敗" : undefined,
+      },
+      { status: 500 }
     );
   }
 }
