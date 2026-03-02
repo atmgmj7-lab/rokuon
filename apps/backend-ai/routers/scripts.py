@@ -14,6 +14,9 @@ from fastapi import APIRouter, HTTPException, Query
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+# 拡張機能用: ルート直下 /scripts で応答（prefix に依存しない）
+SCRIPTS_PATH = "/scripts"
+
 
 def _get_db():
     """Turso DB クライアントを取得"""
@@ -28,8 +31,8 @@ def _get_db():
     return create_client_sync(url=url, auth_token=token)
 
 
-@router.get("")
-@router.get("/")  # 末尾スラッシュ対応
+@router.get(SCRIPTS_PATH)
+@router.get(SCRIPTS_PATH + "/")  # 末尾スラッシュ対応
 async def get_scripts(user_id: str | None = Query(None, description="ユーザーID（指定時は user_script_selections で非表示を除外）")):
     """
     基本シナリオと部品トークを取得。

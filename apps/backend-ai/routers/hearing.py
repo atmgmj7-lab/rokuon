@@ -9,6 +9,9 @@ from fastapi import APIRouter, HTTPException
 
 router = APIRouter()
 
+# 拡張機能用: ルート直下 /hearing で応答（prefix に依存しない）
+HEARING_PATH = "/hearing"
+
 
 def _get_db():
     """Turso DB クライアントを取得"""
@@ -22,8 +25,8 @@ def _get_db():
     return create_client_sync(url=url, auth_token=token)
 
 
-@router.get("")
-@router.get("/")  # 末尾スラッシュ対応
+@router.get(HEARING_PATH)
+@router.get(HEARING_PATH + "/")  # 末尾スラッシュ対応
 async def get_hearing():
     """
     アポヒアリングのカテゴリと項目を取得。

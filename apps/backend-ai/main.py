@@ -48,9 +48,9 @@ app.add_middleware(
 
 app.include_router(scout.router, prefix="/scout", tags=["scout"])
 app.include_router(transcribe.router, prefix="/transcribe", tags=["transcribe"])
-# 拡張機能用: /scripts, /hearing を直下でアクセス可能（prefix でマウント）
-app.include_router(scripts.router, prefix="/scripts", tags=["scripts"])
-app.include_router(hearing.router, prefix="/hearing", tags=["hearing"])
+# 拡張機能用: /scripts, /hearing をルート直下で応答（prefix なし、ルーター内でフルパス指定）
+app.include_router(scripts.router, tags=["scripts"])
+app.include_router(hearing.router, tags=["hearing"])
 
 
 @app.get("/health")
