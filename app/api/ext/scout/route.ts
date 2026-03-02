@@ -5,7 +5,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionFromRequest } from "@/src/lib/auth-request";
 
-const PYTHON_API_URL = process.env.NEXT_PUBLIC_API_URL || "http://127.0.0.1:8765";
+const PYTHON_API_URL = process.env.NEXT_PUBLIC_API_URL || "https://rokuon.onrender.com";
 
 export async function POST(request: NextRequest) {
   try {
