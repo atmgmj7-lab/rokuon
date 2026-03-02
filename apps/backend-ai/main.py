@@ -74,8 +74,8 @@ app = FastAPI(
 # 例外ログ（最外層で全リクエストをキャッチ）
 app.add_middleware(ExceptionLoggingMiddleware)
 
-# CORS: ブラウザからの直接 fetch（音声アップロード等）を許可
-# allow_origins=["*"] で全オリジン許可（allow_credentials は False で併用）
+# CORS: 拡張機能・ブラウザからの fetch を完全開放
+# allow_origins=["*"] で chrome-extension:// 含む全オリジン許可（allow_credentials=False 必須）
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
