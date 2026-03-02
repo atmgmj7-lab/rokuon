@@ -7158,7 +7158,7 @@ function Login({ onLoginSuccess }) {
     ] })
   ] }) });
 }
-const DEFAULT_ENDPOINT = "http://localhost:8765";
+const DEFAULT_ENDPOINT = "https://hybrid-scouter-api.onrender.com";
 const APP_BASE_URL = "https://rokuon-ivory.vercel.app";
 const DEFAULT_INDUSTRY = "屋根工事";
 const INDUSTRY_OPTIONS = [
@@ -7261,6 +7261,8 @@ function App() {
   const [selectedHearingItemIndex, setSelectedHearingItemIndex] = reactExports.useState(-1);
   const [scripts, setScripts] = reactExports.useState(() => EMPTY_SCRIPTS);
   const [scriptsSyncStatus, setScriptsSyncStatus] = reactExports.useState("loading");
+  const [syncManualLoading, setSyncManualLoading] = reactExports.useState(false);
+  const [syncToast, setSyncToast] = reactExports.useState(null);
   const [hearingData, setHearingData] = reactExports.useState(null);
   const [selectedScenarioIndex, setSelectedScenarioIndex] = reactExports.useState(-1);
   const [selectedCompCategory, setSelectedCompCategory] = reactExports.useState("");
@@ -7281,19 +7283,20 @@ function App() {
     console.log("[スカウター] loadStored: token=", t ? `あり(長さ=${t.length})` : "なし");
     setToken(t);
   }, []);
-  const fetchHearing = reactExports.useCallback(async (baseUrl, token2) => {
+  const fetchHearing = reactExports.useCallback(async (baseUrl) => {
+    const base = baseUrl.replace(/\/$/, "");
+    const url2 = `${base}/hearing`;
     try {
-      if (!token2) {
-        console.log("[スカウター] fetchHearing: token なしのためスキップ");
-        return null;
-      }
-      const base = baseUrl.replace(/\/$/, "");
-      const url2 = `${base}/api/ext/hearing`;
-      const headers = { Authorization: `Bearer ${token2}` };
-      console.log("[スカウター] fetchHearing: Authorization 付与, url=", url2);
-      const res = await fetch(url2, { method: "GET", headers });
+      console.log("[スカウター] fetchHearing: リクエストURL=", url2);
+      const res = await fetch(url2, { method: "GET" });
       if (!res.ok) {
-        console.error("[スカウター] hearing API 取得失敗: status=", res.status, "url=", url2);
+        const body = await res.text().catch(() => "");
+        console.error("[スカウター] hearing API 取得失敗:", {
+          url: url2,
+          status: res.status,
+          statusText: res.statusText,
+          body: body.slice(0, 300)
+        });
         return null;
       }
       const raw = await res.json();
@@ -7303,33 +7306,24 @@ function App() {
       const items_by_category = (data == null ? void 0 : data.items_by_category) && typeof data.items_by_category === "object" && !Array.isArray(data.items_by_category) ? data.items_by_category : {};
       return { categories, items_by_category };
     } catch (err) {
-      console.error("[スカウター] hearing API 取得エラー:", err);
+      console.error("[スカウター] hearing API 取得エラー:", { url: url2, error: err });
       return null;
     }
   }, []);
-  const fetchScripts = reactExports.useCallback(async (baseUrl, token2) => {
+  const fetchScripts = reactExports.useCallback(async (baseUrl) => {
+    const base = baseUrl.replace(/\/$/, "");
+    const url2 = `${base}/scripts`;
     try {
-      const base = baseUrl.replace(/\/$/, "");
-      const url2 = token2 ? `${base}/api/ext/scripts` : `${base}/scripts`;
-      const headers = {};
-      if (token2) {
-        headers["Authorization"] = `Bearer ${token2}`;
-        console.log("[スカウター] fetchScripts: tokenあり, Authorization ヘッダー付与, url=", url2);
-      } else {
-        console.warn("[スカウター] fetchScripts: token が null/undefined のため API を叩けません（ext は未使用）");
-        return { data: null, status: "offline" };
-      }
-      const res = await fetch(url2, { method: "GET", headers });
+      console.log("[スカウター] fetchScripts: リクエストURL=", url2);
+      const res = await fetch(url2, { method: "GET" });
       if (!res.ok) {
         const body = await res.text().catch(() => "");
-        console.error(
-          `[スカウター] scripts API 取得失敗: status=${res.status} ${res.statusText}, url=${url2}`,
-          body ? `body=${body.slice(0, 200)}` : ""
-        );
-        if (res.status === 401) {
-          console.warn("[スカウター] 401 Unauthorized: トークンが無効または期限切れの可能性。再ログインが必要です。");
-          return { data: null, status: "offline", requireReauth: true };
-        }
+        console.error("[スカウター] scripts API 取得失敗:", {
+          url: url2,
+          status: res.status,
+          statusText: res.statusText,
+          body: body.slice(0, 300)
+        });
         return { data: null, status: "offline" };
       }
       const raw = await res.json();
@@ -7342,7 +7336,7 @@ function App() {
         status: "synced"
       };
     } catch (err) {
-      console.error("[スカウター] scripts API 取得エラー:", err);
+      console.error("[スカウター] scripts API 取得エラー:", { url: url2, error: err });
       return { data: null, status: "offline" };
     }
   }, []);
@@ -7362,27 +7356,40 @@ function App() {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
-  reactExports.useEffect(() => {
-    if (!token) {
-      console.log("[スカウター] scripts useEffect: token なしのためスキップ");
-      return;
+  const runSync = reactExports.useCallback(async () => {
+    var _a2, _b2;
+    const base = (endpoint || DEFAULT_ENDPOINT).replace(/\/$/, "");
+    try {
+      const [scriptsResult, hearing] = await Promise.all([
+        fetchScripts(base),
+        fetchHearing(base)
+      ]);
+      const hasData = scriptsResult.data && ((((_a2 = scriptsResult.data.base_scenarios) == null ? void 0 : _a2.length) ?? 0) > 0 || Object.keys(scriptsResult.data.component_talks ?? {}).length > 0 || (((_b2 = hearing == null ? void 0 : hearing.categories) == null ? void 0 : _b2.length) ?? 0) > 0);
+      const status = hasData ? "synced" : scriptsResult.status;
+      setScriptsSyncStatus(status);
+      setScripts(scriptsResult.data ?? EMPTY_SCRIPTS);
+      setHearingData(hearing);
+      return status;
+    } catch (e) {
+      console.error("[スカウター] 同期エラー:", { base, error: e });
+      setScriptsSyncStatus("offline");
+      return "offline";
     }
+  }, [endpoint, fetchScripts, fetchHearing]);
+  reactExports.useEffect(() => {
     let cancelled = false;
     const load = async () => {
+      var _a2, _b2;
       setScriptsSyncStatus("loading");
-      const base = (appBaseUrl || APP_BASE_URL).replace(/\/$/, "");
-      console.log("[スカウター] scripts 取得開始: baseUrl=", base, "token長=", (token == null ? void 0 : token.length) ?? 0);
+      const base = (endpoint || DEFAULT_ENDPOINT).replace(/\/$/, "");
+      console.log("[スカウター] scripts/hearing 取得開始: baseUrl=", base);
       const [scriptsResult, hearing] = await Promise.all([
-        fetchScripts(base, token),
-        fetchHearing(base, token)
+        fetchScripts(base),
+        fetchHearing(base)
       ]);
       if (cancelled) return;
-      if (scriptsResult.requireReauth) {
-        console.log("[スカウター] 認証エラーのためトークンをクリア");
-        await chrome.storage.local.remove([SCOUTER_TOKEN_KEY, "scouter_user"]);
-        setToken(null);
-      }
-      setScriptsSyncStatus(scriptsResult.status);
+      const hasData = scriptsResult.data && ((((_a2 = scriptsResult.data.base_scenarios) == null ? void 0 : _a2.length) ?? 0) > 0 || Object.keys(scriptsResult.data.component_talks ?? {}).length > 0 || (((_b2 = hearing == null ? void 0 : hearing.categories) == null ? void 0 : _b2.length) ?? 0) > 0);
+      setScriptsSyncStatus(hasData ? "synced" : scriptsResult.status);
       setScripts(scriptsResult.data ?? EMPTY_SCRIPTS);
       setHearingData(hearing);
     };
@@ -7390,7 +7397,18 @@ function App() {
     return () => {
       cancelled = true;
     };
-  }, [token, appBaseUrl, fetchScripts, fetchHearing]);
+  }, [endpoint, fetchScripts, fetchHearing]);
+  const handleManualSync = async () => {
+    setSyncManualLoading(true);
+    setSyncToast(null);
+    try {
+      const status = await runSync();
+      setSyncToast(status === "synced" ? "同期完了" : "同期に失敗しました");
+      setTimeout(() => setSyncToast(null), 3e3);
+    } finally {
+      setSyncManualLoading(false);
+    }
+  };
   reactExports.useEffect(() => {
     const handler = (changes, areaName) => {
       var _a2, _b2;
@@ -7627,6 +7645,7 @@ function App() {
     ] }),
     loading && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mb-2 p-1.5 bg-amber-50 border border-amber-200 rounded-lg text-[10px] text-amber-800", children: PROGRESS_MESSAGES[progressIndex] }),
     error && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mb-2 p-1.5 bg-red-50 border border-red-200 rounded-lg text-[10px] text-red-700", children: error }),
+    syncToast && /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "mb-2 p-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-[10px] text-emerald-700", children: syncToast }),
     /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { className: "mb-2", children: [
       /* @__PURE__ */ jsxRuntimeExports.jsx(
         AccordionHeader,
@@ -7769,6 +7788,16 @@ function App() {
             }
           )
         ] }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "button",
+          {
+            type: "button",
+            onClick: handleManualSync,
+            disabled: syncManualLoading,
+            className: "w-full mt-1 py-1.5 px-2 bg-stone-200 hover:bg-stone-300 disabled:bg-stone-100 disabled:cursor-not-allowed text-stone-700 font-medium rounded-lg text-[10px]",
+            children: syncManualLoading ? "同期中..." : "設定を同期"
+          }
+        ),
         result && !loading && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "mt-2 pt-2 border-t border-stone-200 space-y-1.5", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { children: [
             /* @__PURE__ */ jsxRuntimeExports.jsx("h3", { className: "text-[10px] font-bold text-amber-700 mb-1", children: "差しどころ" }),

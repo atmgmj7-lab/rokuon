@@ -7,7 +7,7 @@ import Login from "./components/Login";
 const DEFAULT_ENDPOINT =
   import.meta.env.VITE_API_ENDPOINT ||
   import.meta.env.VITE_DEFAULT_ENDPOINT ||
-  "http://localhost:8765";
+  "https://hybrid-scouter-api.onrender.com";
 
 // 録音アプリ（ワークスペース）のベースURL
 const APP_BASE_URL = import.meta.env.VITE_APP_BASE_URL || "http://127.0.0.1:3002";
@@ -173,6 +173,8 @@ export default function App() {
 
   const [scripts, setScripts] = useState<ScriptsData>(() => EMPTY_SCRIPTS);
   const [scriptsSyncStatus, setScriptsSyncStatus] = useState<"synced" | "offline" | "loading">("loading");
+  const [syncManualLoading, setSyncManualLoading] = useState(false);
+  const [syncToast, setSyncToast] = useState<string | null>(null);
   const [hearingData, setHearingData] = useState<HearingData | null>(null);
   const [selectedScenarioIndex, setSelectedScenarioIndex] = useState<number>(-1);
   const [selectedCompCategory, setSelectedCompCategory] = useState<string>("");
@@ -195,19 +197,20 @@ export default function App() {
     setToken(t);
   }, []);
 
-  const fetchHearing = useCallback(async (baseUrl: string, token?: string | null): Promise<HearingData | null> => {
+  const fetchHearing = useCallback(async (baseUrl: string): Promise<HearingData | null> => {
+    const base = baseUrl.replace(/\/$/, "");
+    const url = `${base}/hearing`;
     try {
-      if (!token) {
-        console.log("[スカウター] fetchHearing: token なしのためスキップ");
-        return null;
-      }
-      const base = baseUrl.replace(/\/$/, "");
-      const url = `${base}/api/ext/hearing`;
-      const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
-      console.log("[スカウター] fetchHearing: Authorization 付与, url=", url);
-      const res = await fetch(url, { method: "GET", headers });
+      console.log("[スカウター] fetchHearing: リクエストURL=", url);
+      const res = await fetch(url, { method: "GET" });
       if (!res.ok) {
-        console.error("[スカウター] hearing API 取得失敗: status=", res.status, "url=", url);
+        const body = await res.text().catch(() => "");
+        console.error("[スカウター] hearing API 取得失敗:", {
+          url,
+          status: res.status,
+          statusText: res.statusText,
+          body: body.slice(0, 300),
+        });
         return null;
       }
       const raw = (await res.json()) as unknown;
@@ -221,39 +224,29 @@ export default function App() {
         : {};
       return { categories, items_by_category };
     } catch (err) {
-      console.error("[スカウター] hearing API 取得エラー:", err);
+      console.error("[スカウター] hearing API 取得エラー:", { url, error: err });
       return null;
     }
   }, []);
 
-  const fetchScripts = useCallback(async (baseUrl: string, token?: string | null): Promise<{ data: ScriptsData | null; status: "synced" | "offline"; requireReauth?: boolean }> => {
+  const fetchScripts = useCallback(async (baseUrl: string): Promise<{ data: ScriptsData | null; status: "synced" | "offline" }> => {
+    const base = baseUrl.replace(/\/$/, "");
+    const url = `${base}/scripts`;
     try {
-      const base = baseUrl.replace(/\/$/, "");
-      const url = token ? `${base}/api/ext/scripts` : `${base}/scripts`;
-      const headers: Record<string, string> = {};
-      if (token) {
-        headers["Authorization"] = `Bearer ${token}`;
-        console.log("[スカウター] fetchScripts: tokenあり, Authorization ヘッダー付与, url=", url);
-      } else {
-        console.warn("[スカウター] fetchScripts: token が null/undefined のため API を叩けません（ext は未使用）");
-        return { data: null, status: "offline" };
-      }
-      const res = await fetch(url, { method: "GET", headers });
+      console.log("[スカウター] fetchScripts: リクエストURL=", url);
+      const res = await fetch(url, { method: "GET" });
       if (!res.ok) {
         const body = await res.text().catch(() => "");
-        console.error(
-          `[スカウター] scripts API 取得失敗: status=${res.status} ${res.statusText}, url=${url}`,
-          body ? `body=${body.slice(0, 200)}` : ""
-        );
-        if (res.status === 401) {
-          console.warn("[スカウター] 401 Unauthorized: トークンが無効または期限切れの可能性。再ログインが必要です。");
-          return { data: null, status: "offline", requireReauth: true };
-        }
+        console.error("[スカウター] scripts API 取得失敗:", {
+          url,
+          status: res.status,
+          statusText: res.statusText,
+          body: body.slice(0, 300),
+        });
         return { data: null, status: "offline" };
       }
       const raw = (await res.json()) as unknown;
       console.log("Fetched Scripts (raw):", raw);
-      // ネスト対応: { data: { base_scenarios, component_talks } } または { base_scenarios, component_talks } の両方に対応
       const data = (raw != null && typeof raw === "object" && "data" in raw && raw.data != null)
         ? (raw.data as Partial<ScriptsData>)
         : (raw as Partial<ScriptsData>);
@@ -266,7 +259,7 @@ export default function App() {
         status: "synced",
       };
     } catch (err) {
-      console.error("[スカウター] scripts API 取得エラー:", err);
+      console.error("[スカウター] scripts API 取得エラー:", { url, error: err });
       return { data: null, status: "offline" };
     }
   }, []);
@@ -290,33 +283,65 @@ export default function App() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  useEffect(() => {
-    if (!token) {
-      console.log("[スカウター] scripts useEffect: token なしのためスキップ");
-      return;
+  const runSync = useCallback(async () => {
+    const base = (endpoint || DEFAULT_ENDPOINT).replace(/\/$/, "");
+    try {
+      const [scriptsResult, hearing] = await Promise.all([
+        fetchScripts(base),
+        fetchHearing(base),
+      ]);
+      const hasData = scriptsResult.data && (
+        (scriptsResult.data.base_scenarios?.length ?? 0) > 0 ||
+        Object.keys(scriptsResult.data.component_talks ?? {}).length > 0 ||
+        (hearing?.categories?.length ?? 0) > 0
+      );
+      const status = hasData ? "synced" : scriptsResult.status;
+      setScriptsSyncStatus(status);
+      setScripts(scriptsResult.data ?? EMPTY_SCRIPTS);
+      setHearingData(hearing);
+      return status;
+    } catch (e) {
+      console.error("[スカウター] 同期エラー:", { base, error: e });
+      setScriptsSyncStatus("offline");
+      return "offline";
     }
+  }, [endpoint, fetchScripts, fetchHearing]);
+
+  useEffect(() => {
     let cancelled = false;
     const load = async () => {
       setScriptsSyncStatus("loading");
-      const base = (appBaseUrl || APP_BASE_URL).replace(/\/$/, "");
-      console.log("[スカウター] scripts 取得開始: baseUrl=", base, "token長=", token?.length ?? 0);
+      const base = (endpoint || DEFAULT_ENDPOINT).replace(/\/$/, "");
+      console.log("[スカウター] scripts/hearing 取得開始: baseUrl=", base);
       const [scriptsResult, hearing] = await Promise.all([
-        fetchScripts(base, token),
-        fetchHearing(base, token),
+        fetchScripts(base),
+        fetchHearing(base),
       ]);
       if (cancelled) return;
-      if (scriptsResult.requireReauth) {
-        console.log("[スカウター] 認証エラーのためトークンをクリア");
-        await chrome.storage.local.remove([SCOUTER_TOKEN_KEY, "scouter_user"]);
-        setToken(null);
-      }
-      setScriptsSyncStatus(scriptsResult.status);
+      const hasData = scriptsResult.data && (
+        (scriptsResult.data.base_scenarios?.length ?? 0) > 0 ||
+        Object.keys(scriptsResult.data.component_talks ?? {}).length > 0 ||
+        (hearing?.categories?.length ?? 0) > 0
+      );
+      setScriptsSyncStatus(hasData ? "synced" : scriptsResult.status);
       setScripts(scriptsResult.data ?? EMPTY_SCRIPTS);
       setHearingData(hearing);
     };
     load();
     return () => { cancelled = true; };
-  }, [token, appBaseUrl, fetchScripts, fetchHearing]);
+  }, [endpoint, fetchScripts, fetchHearing]);
+
+  const handleManualSync = async () => {
+    setSyncManualLoading(true);
+    setSyncToast(null);
+    try {
+      const status = await runSync();
+      setSyncToast(status === "synced" ? "同期完了" : "同期に失敗しました");
+      setTimeout(() => setSyncToast(null), 3000);
+    } finally {
+      setSyncManualLoading(false);
+    }
+  };
 
   useEffect(() => {
     const handler = (
@@ -609,6 +634,12 @@ export default function App() {
         </div>
       )}
 
+      {syncToast && (
+        <div className="mb-2 p-1.5 bg-emerald-50 border border-emerald-200 rounded-lg text-[10px] text-emerald-700">
+          {syncToast}
+        </div>
+      )}
+
       {/* マップリサーチ */}
       <section className="mb-2">
         <AccordionHeader
@@ -737,6 +768,14 @@ export default function App() {
                 スカウト開始
               </button>
             </div>
+            <button
+              type="button"
+              onClick={handleManualSync}
+              disabled={syncManualLoading}
+              className="w-full mt-1 py-1.5 px-2 bg-stone-200 hover:bg-stone-300 disabled:bg-stone-100 disabled:cursor-not-allowed text-stone-700 font-medium rounded-lg text-[10px]"
+            >
+              {syncManualLoading ? "同期中..." : "設定を同期"}
+            </button>
 
             {result && !loading && (
               <div className="mt-2 pt-2 border-t border-stone-200 space-y-1.5">
