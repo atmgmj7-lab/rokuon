@@ -247,4 +247,31 @@ CREATE TABLE IF NOT EXISTS transcript_corrections (
 
 CREATE INDEX IF NOT EXISTS idx_transcript_corrections_recording_id ON transcript_corrections(recording_id);
 CREATE INDEX IF NOT EXISTS idx_transcript_corrections_created_at ON transcript_corrections(created_at DESC);
+
+CREATE TABLE IF NOT EXISTS regions (
+  id TEXT PRIMARY KEY,
+  prefecture TEXT NOT NULL,
+  city TEXT NOT NULL,
+  yomigana TEXT,
+  population INTEGER,
+  search_volume INTEGER,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_regions_prefecture ON regions(prefecture);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_regions_prefecture_city ON regions(prefecture, city);
+
+-- 業種キーワード × 地域の月間検索ボリューム（regions の search_volume とは別管理）
+CREATE TABLE IF NOT EXISTS region_keywords (
+  id TEXT PRIMARY KEY,
+  prefecture TEXT NOT NULL,
+  city TEXT NOT NULL,
+  keyword TEXT NOT NULL,
+  search_volume INTEGER,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_region_keywords_city ON region_keywords(city);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_region_keywords_city_keyword ON region_keywords(prefecture, city, keyword);
 `;

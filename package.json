@@ -13,6 +13,8 @@
     "migrate:role-level": "tsx scripts/migrate-v17-role-level.ts",
     "migrate:users-password": "tsx scripts/migrate-v18-users-password.ts",
     "migrate:visibility": "tsx scripts/migrate-v19-user-script-selections.ts",
+    "migrate:regions": "tsx scripts/migrate-v20-regions.ts",
+    "migrate:region-keywords": "tsx scripts/migrate-v21-region-keywords.ts",
     "seed:admin": "tsx scripts/create-admin.ts"
   },
   "dependencies": {

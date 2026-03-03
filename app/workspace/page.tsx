@@ -49,6 +49,7 @@ import Link from "next/link";
 import LearningDataManager from "@/src/components/workspace/LearningDataManager";
 import HearingManager from "@/src/components/workspace/HearingManager";
 import UserManager from "@/src/components/workspace/UserManager";
+import RegionsManager from "@/src/components/workspace/RegionsManager";
 import { getCurrentUser } from "@/src/actions/auth-actions";
 
 type MenuTab =
@@ -60,7 +61,8 @@ type MenuTab =
   | "timelines"
   | "hearing"
   | "learning_data"
-  | "users";
+  | "users"
+  | "regions";
 
 export default function WorkspacePage() {
   const [activeMenu, setActiveMenu] = useState<MenuTab>("main_scenario");
@@ -423,6 +425,11 @@ export default function WorkspacePage() {
               label="ユーザー管理"
             />
           )}
+          <MenuButton
+            active={activeMenu === "regions"}
+            onClick={() => setActiveMenu("regions")}
+            label="地域データ"
+          />
         </div>
       </div>
 
@@ -510,6 +517,11 @@ export default function WorkspacePage() {
 
         {/* ユーザー管理（admin のみ） */}
         {activeMenu === "users" && (currentUser?.role ?? "viewer") === "admin" && <UserManager />}
+
+        {/* 地域データ管理 */}
+        {activeMenu === "regions" && (
+          <RegionsManager isAdmin={(currentUser?.role ?? "viewer") === "admin"} />
+        )}
       </div>
     </div>
   );

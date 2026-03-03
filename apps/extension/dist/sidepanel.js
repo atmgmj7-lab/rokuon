@@ -7207,6 +7207,10 @@ const PROGRESS_MESSAGES = [
   "AI クリーニング中...",
   "差しどころ抽出中..."
 ];
+function extractCityQuery(raw) {
+  return raw.replace(/^(東京都|北海道|(?:京都|大阪)府|.{2,3}県)/, "").trim();
+}
+const REGIONS_API_PATH = "/api/regions";
 const EMPTY_SCRIPTS = { base_scenarios: [], component_talks: {} };
 function getErrorMessage(status, detail) {
   if (status === 504) {
@@ -7262,6 +7266,8 @@ function App() {
   const [openHearing, setOpenHearing] = reactExports.useState(false);
   const [selectedHearingCategoryId, setSelectedHearingCategoryId] = reactExports.useState("");
   const [selectedHearingItemIndex, setSelectedHearingItemIndex] = reactExports.useState(-1);
+  const [regionInfo, setRegionInfo] = reactExports.useState(null);
+  const [regionInfoLoading, setRegionInfoLoading] = reactExports.useState(false);
   const [scripts, setScripts] = reactExports.useState(() => EMPTY_SCRIPTS);
   const [scriptsSyncStatus, setScriptsSyncStatus] = reactExports.useState("loading");
   const [syncManualLoading, setSyncManualLoading] = reactExports.useState(false);
@@ -7533,11 +7539,14 @@ function App() {
   };
   const saveConfig = async () => {
     const cleanedEndpoint = cleanEndpointUrl(endpoint || DEFAULT_ENDPOINT) || DEFAULT_ENDPOINT;
+    const cleanedAppBaseUrl = cleanEndpointUrl(appBaseUrl || APP_BASE_URL) || APP_BASE_URL;
     setEndpoint(cleanedEndpoint);
+    setAppBaseUrl(cleanedAppBaseUrl);
     await chrome.storage.local.set({
       apiEndpoint: cleanedEndpoint,
-      appBaseUrl: cleanEndpointUrl(appBaseUrl || APP_BASE_URL) || APP_BASE_URL
+      appBaseUrl: cleanedAppBaseUrl
     });
+    console.log("[スカウター] 設定保存 endpoint:", cleanedEndpoint, "| appBaseUrl:", cleanedAppBaseUrl);
   };
   const handleUrlDrop = (e) => {
     var _a2, _b2, _c, _d;
@@ -7612,6 +7621,42 @@ function App() {
     await chrome.storage.local.remove([SCOUTER_TOKEN_KEY, "scouter_user"]);
     setToken(null);
   };
+  const autoFetchRegionInfo = reactExports.useCallback(async (regionText) => {
+    const q = extractCityQuery(regionText.trim());
+    if (!q) {
+      setRegionInfo(null);
+      return;
+    }
+    setRegionInfoLoading(true);
+    try {
+      const base = cleanEndpointUrl(appBaseUrl || APP_BASE_URL);
+      const fetchUrl = base + REGIONS_API_PATH + "?q=" + encodeURIComponent(q);
+      console.log("[スカウター] 地域検索 URL:", fetchUrl, "| base:", base, "| q:", q);
+      const headers = { Accept: "application/json" };
+      if (token) headers["Authorization"] = "Bearer " + token;
+      const res = await fetch(fetchUrl, { method: "GET", mode: "cors", credentials: "omit", headers });
+      if (!res.ok) {
+        console.warn("[スカウター] 地域検索 HTTP エラー:", res.status, fetchUrl);
+        setRegionInfoLoading(false);
+        return;
+      }
+      const json = await res.json();
+      setRegionInfo(json.success && json.data.length > 0 ? json.data[0] : null);
+    } catch (err) {
+      console.error("[スカウター] 地域検索 エラー:", err);
+      setRegionInfo(null);
+    } finally {
+      setRegionInfoLoading(false);
+    }
+  }, [appBaseUrl, token]);
+  reactExports.useEffect(() => {
+    if (!region.trim()) {
+      setRegionInfo(null);
+      return;
+    }
+    const id = setTimeout(() => autoFetchRegionInfo(region), 600);
+    return () => clearTimeout(id);
+  }, [region, autoFetchRegionInfo]);
   const targetHint = [region, industry].filter(Boolean).join(" / ") || void 0;
   if (authLoading) {
     return /* @__PURE__ */ jsxRuntimeExports.jsx("div", { className: "min-h-screen bg-stone-50 text-stone-800 p-4 flex items-center justify-center text-[10px]", children: /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-stone-500", children: "読み込み中..." }) });
@@ -7729,6 +7774,30 @@ function App() {
               children: "選択入力"
             }
           )
+        ] }),
+        regionInfoLoading && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1.5 px-2 py-1 text-[9px] text-stone-400", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "w-1.5 h-1.5 rounded-full bg-stone-300 animate-pulse shrink-0" }),
+          "地域データ取得中..."
+        ] }),
+        !regionInfoLoading && regionInfo && /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "px-2 py-1.5 bg-blue-50 border-l-4 border-l-blue-500 border border-blue-100 rounded-r-lg", children: [
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("p", { className: "font-bold text-[10px] text-blue-900", children: [
+            regionInfo.city,
+            regionInfo.yomigana && /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { className: "font-normal text-blue-600 ml-1", children: [
+              "（",
+              regionInfo.yomigana,
+              "）"
+            ] })
+          ] }),
+          /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex gap-3 mt-0.5 text-[9px] text-blue-700", children: [
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
+              "人口：",
+              regionInfo.population !== null ? `${regionInfo.population.toLocaleString()}人` : "—"
+            ] }),
+            /* @__PURE__ */ jsxRuntimeExports.jsxs("span", { children: [
+              "月間検索：",
+              regionInfo.search_volume !== null ? `${regionInfo.search_volume.toLocaleString()}件` : "—"
+            ] })
+          ] })
         ] }),
         /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { ref: industryWrapperRef, className: "relative", children: [
           /* @__PURE__ */ jsxRuntimeExports.jsx(
@@ -8000,25 +8069,41 @@ function App() {
         )
       ] }) })
     ] }),
-    /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { className: "pt-2 border-t border-stone-200 flex gap-1", children: [
-      /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "input",
-        {
-          type: "text",
-          value: endpoint,
-          onChange: (e) => setEndpoint(e.target.value),
-          placeholder: "http://localhost:8765",
-          className: "flex-1 px-1.5 py-1 border border-stone-300 rounded text-[10px]"
-        }
-      ),
-      /* @__PURE__ */ jsxRuntimeExports.jsx(
-        "button",
-        {
-          onClick: saveConfig,
-          className: "px-1.5 py-1 bg-stone-200 hover:bg-stone-300 rounded text-[10px]",
-          children: "保存"
-        }
-      )
+    /* @__PURE__ */ jsxRuntimeExports.jsxs("section", { className: "pt-2 border-t border-stone-200 space-y-1", children: [
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[9px] text-stone-500 shrink-0 w-14", children: "アプリURL" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "input",
+          {
+            type: "text",
+            value: appBaseUrl,
+            onChange: (e) => setAppBaseUrl(e.target.value),
+            placeholder: "https://rokuon-ivory.vercel.app",
+            className: "flex-1 px-1.5 py-1 border border-stone-300 rounded text-[10px]"
+          }
+        )
+      ] }),
+      /* @__PURE__ */ jsxRuntimeExports.jsxs("div", { className: "flex items-center gap-1", children: [
+        /* @__PURE__ */ jsxRuntimeExports.jsx("span", { className: "text-[9px] text-stone-500 shrink-0 w-14", children: "バックエンド" }),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "input",
+          {
+            type: "text",
+            value: endpoint,
+            onChange: (e) => setEndpoint(e.target.value),
+            placeholder: "http://localhost:8765",
+            className: "flex-1 px-1.5 py-1 border border-stone-300 rounded text-[10px]"
+          }
+        ),
+        /* @__PURE__ */ jsxRuntimeExports.jsx(
+          "button",
+          {
+            onClick: saveConfig,
+            className: "px-1.5 py-1 bg-stone-200 hover:bg-stone-300 rounded text-[10px] shrink-0",
+            children: "保存"
+          }
+        )
+      ] })
     ] })
   ] });
 }
