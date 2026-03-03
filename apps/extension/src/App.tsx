@@ -73,6 +73,16 @@ const PROGRESS_MESSAGES = [
   "差しどころ抽出中...",
 ];
 
+/** 地域テキストから都道府県プレフィックスを除去して検索クエリを返す（コンポーネント外・純粋関数） */
+function extractCityQuery(raw: string): string {
+  return raw
+    .replace(/^(東京都|北海道|(?:京都|大阪)府|.{2,3}県)/, "")
+    .trim();
+}
+
+/** 地域検索APIのパス（ドメインとは分離して管理） */
+const REGIONS_API_PATH = "/api/regions";
+
 interface TalkItem {
   id?: string;
   title: string;
@@ -180,6 +190,13 @@ export default function App() {
   const [openHearing, setOpenHearing] = useState(false);
   const [selectedHearingCategoryId, setSelectedHearingCategoryId] = useState<string>("");
   const [selectedHearingItemIndex, setSelectedHearingItemIndex] = useState<number>(-1);
+
+  // 地域情報（region state に自動追従）
+  const [regionInfo, setRegionInfo] = useState<{
+    id: string; city: string; yomigana: string;
+    population: number | null; search_volume: number | null;
+  } | null>(null);
+  const [regionInfoLoading, setRegionInfoLoading] = useState(false);
 
   const [scripts, setScripts] = useState<ScriptsData>(() => EMPTY_SCRIPTS);
   const [scriptsSyncStatus, setScriptsSyncStatus] = useState<"synced" | "offline" | "loading">("loading");
@@ -490,11 +507,14 @@ export default function App() {
 
   const saveConfig = async () => {
     const cleanedEndpoint = cleanEndpointUrl(endpoint || DEFAULT_ENDPOINT) || DEFAULT_ENDPOINT;
+    const cleanedAppBaseUrl = cleanEndpointUrl(appBaseUrl || APP_BASE_URL) || APP_BASE_URL;
     setEndpoint(cleanedEndpoint);
+    setAppBaseUrl(cleanedAppBaseUrl);
     await chrome.storage.local.set({
       apiEndpoint: cleanedEndpoint,
-      appBaseUrl: cleanEndpointUrl(appBaseUrl || APP_BASE_URL) || APP_BASE_URL,
+      appBaseUrl: cleanedAppBaseUrl,
     });
+    console.log("[スカウター] 設定保存 endpoint:", cleanedEndpoint, "| appBaseUrl:", cleanedAppBaseUrl);
   };
 
   const handleUrlDrop = (e: React.DragEvent) => {
@@ -589,6 +609,43 @@ export default function App() {
     await chrome.storage.local.remove([SCOUTER_TOKEN_KEY, "scouter_user"]);
     setToken(null);
   };
+
+  const autoFetchRegionInfo = useCallback(async (regionText: string) => {
+    const q = extractCityQuery(regionText.trim());
+    if (!q) { setRegionInfo(null); return; }
+    setRegionInfoLoading(true);
+    try {
+      // URL を部品に分解して明示的に組み立て（パス欠落を防止）
+      const base = cleanEndpointUrl(appBaseUrl || APP_BASE_URL);
+      const fetchUrl = base + REGIONS_API_PATH + "?q=" + encodeURIComponent(q);
+      console.log("[スカウター] 地域検索 URL:", fetchUrl, "| base:", base, "| q:", q);
+      const headers: Record<string, string> = { Accept: "application/json" };
+      if (token) headers["Authorization"] = "Bearer " + token;
+      const res = await fetch(fetchUrl, { method: "GET", mode: "cors", credentials: "omit", headers });
+      if (!res.ok) {
+        console.warn("[スカウター] 地域検索 HTTP エラー:", res.status, fetchUrl);
+        setRegionInfoLoading(false);
+        return;
+      }
+      const json = await res.json() as {
+        success: boolean;
+        data: Array<{ id: string; city: string; yomigana: string; population: number | null; search_volume: number | null }>;
+      };
+      setRegionInfo(json.success && json.data.length > 0 ? json.data[0] : null);
+    } catch (err) {
+      console.error("[スカウター] 地域検索 エラー:", err);
+      setRegionInfo(null);
+    } finally {
+      setRegionInfoLoading(false);
+    }
+  }, [appBaseUrl, token]);
+
+  // region が変わったら 600ms デバウンスで自動取得
+  useEffect(() => {
+    if (!region.trim()) { setRegionInfo(null); return; }
+    const id = setTimeout(() => autoFetchRegionInfo(region), 600);
+    return () => clearTimeout(id);
+  }, [region, autoFetchRegionInfo]);
 
   const targetHint = [region, industry].filter(Boolean).join(" / ") || undefined;
 
@@ -722,6 +779,37 @@ export default function App() {
                 選択入力
               </button>
             </div>
+
+            {/* 地域情報カード（region state に自動追従） */}
+            {regionInfoLoading && (
+              <div className="flex items-center gap-1.5 px-2 py-1 text-[9px] text-stone-400">
+                <span className="w-1.5 h-1.5 rounded-full bg-stone-300 animate-pulse shrink-0" />
+                地域データ取得中...
+              </div>
+            )}
+            {!regionInfoLoading && regionInfo && (
+              <div className="px-2 py-1.5 bg-blue-50 border-l-4 border-l-blue-500 border border-blue-100 rounded-r-lg">
+                <p className="font-bold text-[10px] text-blue-900">
+                  {regionInfo.city}
+                  {regionInfo.yomigana && (
+                    <span className="font-normal text-blue-600 ml-1">（{regionInfo.yomigana}）</span>
+                  )}
+                </p>
+                <div className="flex gap-3 mt-0.5 text-[9px] text-blue-700">
+                  <span>
+                    人口：{regionInfo.population !== null
+                      ? `${regionInfo.population.toLocaleString()}人`
+                      : "—"}
+                  </span>
+                  <span>
+                    月間検索：{regionInfo.search_volume !== null
+                      ? `${regionInfo.search_volume.toLocaleString()}件`
+                      : "—"}
+                  </span>
+                </div>
+              </div>
+            )}
+
             <div ref={industryWrapperRef} className="relative">
               <input
                 type="text"
@@ -1055,20 +1143,35 @@ export default function App() {
         )}
       </section>
 
-      <section className="pt-2 border-t border-stone-200 flex gap-1">
-        <input
-          type="text"
-          value={endpoint}
-          onChange={(e) => setEndpoint(e.target.value)}
-          placeholder="http://localhost:8765"
-          className="flex-1 px-1.5 py-1 border border-stone-300 rounded text-[10px]"
-        />
-        <button
-          onClick={saveConfig}
-          className="px-1.5 py-1 bg-stone-200 hover:bg-stone-300 rounded text-[10px]"
-        >
-          保存
-        </button>
+      <section className="pt-2 border-t border-stone-200 space-y-1">
+        {/* アプリURL（地域検索・録音ページなど Next.js 側 API に使用） */}
+        <div className="flex items-center gap-1">
+          <span className="text-[9px] text-stone-500 shrink-0 w-14">アプリURL</span>
+          <input
+            type="text"
+            value={appBaseUrl}
+            onChange={(e) => setAppBaseUrl(e.target.value)}
+            placeholder="https://rokuon-ivory.vercel.app"
+            className="flex-1 px-1.5 py-1 border border-stone-300 rounded text-[10px]"
+          />
+        </div>
+        {/* バックエンドURL（スカウト・スクリプト同期など Python 側 API に使用） */}
+        <div className="flex items-center gap-1">
+          <span className="text-[9px] text-stone-500 shrink-0 w-14">バックエンド</span>
+          <input
+            type="text"
+            value={endpoint}
+            onChange={(e) => setEndpoint(e.target.value)}
+            placeholder="http://localhost:8765"
+            className="flex-1 px-1.5 py-1 border border-stone-300 rounded text-[10px]"
+          />
+          <button
+            onClick={saveConfig}
+            className="px-1.5 py-1 bg-stone-200 hover:bg-stone-300 rounded text-[10px] shrink-0"
+          >
+            保存
+          </button>
+        </div>
       </section>
     </div>
   );
