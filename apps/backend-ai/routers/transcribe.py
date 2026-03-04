@@ -1,26 +1,17 @@
 """
-mlx-whisper によるローカル文字起こし
-
-APIコスト0で録音をテキスト化。
+OpenAI Whisper API による文字起こし
 """
 import tempfile
 import os
 from fastapi import APIRouter, UploadFile, File, HTTPException
+from services.openai_whisper_service import transcribe_with_openai_whisper
 
 router = APIRouter()
 
 
 @router.post("")
 async def transcribe_audio(file: UploadFile = File(...)):
-    """音声ファイルを mlx-whisper で文字起こし"""
-    try:
-        from services.mlx_whisper_service import transcribe_with_mlx_whisper
-    except ImportError as e:
-        raise HTTPException(
-            status_code=503,
-            detail=f"mlx-whisper が利用できません。pip install mlx-whisper を実行してください: {e}",
-        )
-
+    """音声ファイルを OpenAI Whisper API で文字起こし"""
     if not file.filename or not file.filename.lower().endswith((".mp3", ".m4a", ".wav", ".webm", ".mp4")):
         raise HTTPException(status_code=400, detail="音声ファイル（mp3/m4a/wav/webm）を指定してください")
 
@@ -30,15 +21,17 @@ async def transcribe_audio(file: UploadFile = File(...)):
         tmp_path = tmp.name
 
     try:
-        result = transcribe_with_mlx_whisper(tmp_path)
-        segments = result.get("segments", [])
-        duration = max((s.get("end", 0) for s in segments), default=0) if segments else 0
+        result = transcribe_with_openai_whisper(tmp_path)
+        paragraphs = result.get("paragraphs", [])
+        duration = max((p.get("endTime", 0) for p in paragraphs), default=0) if paragraphs else 0
         return {
             "success": True,
             "text": result.get("text", ""),
-            "segments": segments,
+            "segments": paragraphs,
             "duration": duration,
         }
+    except ValueError as e:
+        raise HTTPException(status_code=503, detail=str(e))
     finally:
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
