@@ -44,21 +44,21 @@ const NODE_COLORS: Record<string, string> = {
 };
 
 function dbNodeToRF(n: DbNode): Node {
-  const base  = { id: n.id, position: { x: n.pos_x, y: n.pos_y } };
-  const label = (n.title ?? n.label) || n.label;
+  const base     = { id: n.id, position: { x: n.pos_x, y: n.pos_y } };
+  const label    = (n.title ?? n.label) || n.label;
   const baseData = { label, audio_url: n.audio_url, r2_key: n.r2_key, parent_id: n.parent_id ?? null };
 
   switch (n.node_type) {
     case "script_item":
-      return { ...base, type: "scriptItem",  data: { ...baseData, content: n.content, color: n.color, script_item_id: n.script_item_id }, style: { width: n.width, height: n.height } };
+      return { ...base, type: "scriptItem", data: { ...baseData, content: n.content, color: n.color, script_item_id: n.script_item_id }, style: { width: n.width, height: n.height } };
     case "recording":
-      return { ...base, type: "recording",   data: { ...baseData, color: n.color }, style: { width: n.width } };
+      return { ...base, type: "recording",  data: { ...baseData, color: n.color }, style: { width: n.width } };
     case "section":
-      return { ...base, type: "section",     data: { ...baseData, color: n.color }, style: { width: n.width, height: n.height } };
+      return { ...base, type: "section",    data: { ...baseData, color: n.color }, style: { width: n.width, height: n.height } };
     case "strategy1": case "strategy2": case "strategy3":
-      return { ...base, type: n.node_type,   data: { ...baseData }, style: { width: n.width } };
+      return { ...base, type: n.node_type,  data: { ...baseData }, style: { width: n.width } };
     default:
-      return { ...base, type: "text",        data: { ...baseData, content: n.content ?? label, color: n.color }, style: { width: n.width } };
+      return { ...base, type: "text",       data: { ...baseData, content: n.content ?? label, color: n.color }, style: { width: n.width } };
   }
 }
 
@@ -122,7 +122,7 @@ function buildOutlineLines(nodes: Node[], edges: Edge[]) {
     ids.slice().sort((a, b) => (nodeById.get(a)?.position.y ?? 0) - (nodeById.get(b)?.position.y ?? 0));
 
   const TIER_PREFIX: Record<string, string> = {
-    strategy1: "[現象] ", strategy2: "[心理] ", strategy3: "[実行] ",
+    strategy1: "[代表アウト] ", strategy2: "[代表心理] ", strategy3: "[実行] ",
   };
 
   const lines: string[] = [];
@@ -147,10 +147,10 @@ function buildOutlineLines(nodes: Node[], edges: Edge[]) {
 function Canvas({ mapId, initialNodes, initialEdges }: { mapId: string; initialNodes: DbNode[]; initialEdges: DbEdge[] }) {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes.map(dbNodeToRF));
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges.map(dbEdgeToRF));
-  const [showPanel, setShowPanel]        = useState(false);
-  const [showCmd,   setShowCmd]          = useState(false);
-  const [viewMode,  setViewMode]         = useState<ViewMode>("map");
-  const [saveStatus, setSaveStatus]      = useState<"saved" | "saving" | "unsaved">("saved");
+  const [showPanel,  setShowPanel]  = useState(false);
+  const [showCmd,    setShowCmd]    = useState(false);
+  const [viewMode,   setViewMode]   = useState<ViewMode>("map");
+  const [saveStatus, setSaveStatus] = useState<"saved" | "saving" | "unsaved">("saved");
   const isFirstRender = useRef(true);
   const { fitView }   = useReactFlow();
 
@@ -308,7 +308,7 @@ function Canvas({ mapId, initialNodes, initialEdges }: { mapId: string; initialN
       if (changes.some((c) => c.type === "remove")) {
         setEdges((es) => {
           if (removedIds.length > 0) {
-            const removed     = new Set(removedIds);
+            const removed      = new Set(removedIds);
             const removedEdges = edges.filter((e) => removed.has(e.id));
             if (removedEdges.length > 0) {
               setNodes((ns) => ns.map((n) => {
@@ -343,8 +343,8 @@ function Canvas({ mapId, initialNodes, initialEdges }: { mapId: string; initialN
 
   // ----- 戦略ノード追加 -----
   const addStrategyNode = useCallback((tier: 1 | 2 | 3, position?: { x: number; y: number }) => {
-    const id      = `node_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
-    const labels  = { 1: "現象を入力", 2: "心理を入力", 3: "実行策を入力" } as const;
+    const id     = `node_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
+    const labels = { 1: "代表アウトを入力", 2: "代表心理を入力", 3: "実行策を入力" } as const;
     const node: Node = {
       id,
       position: position ?? { x: 80 + Math.random() * 220, y: 80 + Math.random() * 220 },
@@ -356,7 +356,7 @@ function Canvas({ mapId, initialNodes, initialEdges }: { mapId: string; initialN
     return id;
   }, [setNodes, edges, pushHistory]);
 
-  // ----- ⌘+Enter スマートブランチ生成 -----
+  // ----- ⌘+Enter スマートブランチ生成（1:N 対応） -----
   const addChildBranch = useCallback(() => {
     const parent = nodes.find(
       (n) => n.selected && (n.type === "strategy1" || n.type === "strategy2")
@@ -364,11 +364,16 @@ function Canvas({ mapId, initialNodes, initialEdges }: { mapId: string; initialN
     if (!parent) return;
 
     const nextTier = parent.type === "strategy1" ? 2 : 3;
-    const childId  = `node_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
-    const labels   = { 2: "心理を入力", 3: "実行策を入力" } as const;
+    const labels   = { 2: "代表心理を入力", 3: "実行策を入力" } as const;
+
+    // 既存の子ノード数を数えて横方向にオフセット（1:N 多分岐）
+    const siblingCount = edges.filter((e) => e.source === parent.id).length;
+    const xOffset      = siblingCount * 240;
+
+    const childId   = `node_${Date.now()}_${Math.random().toString(36).slice(2, 5)}`;
     const childNode: Node = {
       id:       childId,
-      position: { x: parent.position.x, y: parent.position.y + 160 },
+      position: { x: parent.position.x + xOffset, y: parent.position.y + 170 },
       type:     `strategy${nextTier}`,
       data:     { label: labels[nextTier as 2 | 3], audio_url: null, r2_key: null, parent_id: parent.id },
     };
@@ -387,7 +392,7 @@ function Canvas({ mapId, initialNodes, initialEdges }: { mapId: string; initialN
       return updated;
     });
     setSaveStatus("unsaved");
-  }, [nodes, setNodes, setEdges, pushHistory]);
+  }, [nodes, edges, setNodes, setEdges, pushHistory]);
 
   // ----- キーボードショートカット -----
   useEffect(() => {
@@ -468,24 +473,29 @@ function Canvas({ mapId, initialNodes, initialEdges }: { mapId: string; initialN
 
   // ----- コマンドパレット定義 -----
   const commands: Command[] = useMemo(() => [
-    { id: "add-text",       label: "テキストノードを追加",         icon: <FileText className="w-4 h-4" />,      group: "ノード追加", action: () => addNode("text") },
-    { id: "add-script",     label: "スクリプトノードを追加",       icon: <Plus className="w-4 h-4" />,          group: "ノード追加", action: () => addNode("script_item", { label: "スクリプト" }) },
-    { id: "add-recording",  label: "録音ノードを追加",             icon: <Mic className="w-4 h-4" />,           group: "ノード追加", action: () => addNode("recording", { label: "録音メモ" }) },
-    { id: "add-strategy1",  label: "現象ノードを追加",             icon: <MessageSquare className="w-4 h-4" />, group: "戦略ツリー", action: () => addStrategyNode(1) },
-    { id: "add-strategy2",  label: "心理ノードを追加",             icon: <Lightbulb className="w-4 h-4" />,     group: "戦略ツリー", action: () => addStrategyNode(2) },
-    { id: "add-strategy3",  label: "実行ノードを追加",             icon: <Target className="w-4 h-4" />,        group: "戦略ツリー", action: () => addStrategyNode(3) },
-    { id: "branch",         label: "子ブランチを生成 (⌘Enter)",   icon: <Target className="w-4 h-4" />,        group: "戦略ツリー", shortcut: "⌘↩", action: addChildBranch },
-    { id: "open-scripts",   label: "スクリプト一覧パネルを開く",   icon: <FileText className="w-4 h-4" />,      group: "パネル",     action: () => setShowPanel(true) },
-    { id: "undo",           label: "元に戻す (Undo)",              icon: <Undo2 className="w-4 h-4" />,         group: "編集",       shortcut: "⌘Z",  action: undo },
-    { id: "redo",           label: "やり直す (Redo)",              icon: <Redo2 className="w-4 h-4" />,         group: "編集",       shortcut: "⌘⇧Z", action: redo },
-    { id: "fit-view",       label: "全体を表示 (Fit View)",        icon: <LayoutGrid className="w-4 h-4" />,    group: "表示",       action: () => fitView({ duration: 300 }) },
+    { id: "add-text",       label: "テキストノードを追加",             icon: <FileText className="w-4 h-4" />,      group: "ノード追加", action: () => addNode("text") },
+    { id: "add-script",     label: "スクリプトノードを追加",           icon: <Plus className="w-4 h-4" />,          group: "ノード追加", action: () => addNode("script_item", { label: "スクリプト" }) },
+    { id: "add-recording",  label: "録音ノードを追加",                 icon: <Mic className="w-4 h-4" />,           group: "ノード追加", action: () => addNode("recording", { label: "録音メモ" }) },
+    { id: "add-strategy1",  label: "代表アウトノードを追加",           icon: <MessageSquare className="w-4 h-4" />, group: "戦略ツリー", action: () => addStrategyNode(1) },
+    { id: "add-strategy2",  label: "代表心理ノードを追加",             icon: <Lightbulb className="w-4 h-4" />,     group: "戦略ツリー", action: () => addStrategyNode(2) },
+    { id: "add-strategy3",  label: "実行ノードを追加",                 icon: <Target className="w-4 h-4" />,        group: "戦略ツリー", action: () => addStrategyNode(3) },
+    { id: "branch",         label: "子ブランチを生成 (⌘Enter)",       icon: <Target className="w-4 h-4" />,        group: "戦略ツリー", shortcut: "⌘↩", action: addChildBranch },
+    { id: "open-scripts",   label: "スクリプト一覧パネルを開く",       icon: <FileText className="w-4 h-4" />,      group: "パネル",     action: () => setShowPanel(true) },
+    { id: "outline",        label: "アウトライン表示に切替",           icon: <FileText className="w-4 h-4" />,      group: "表示",       action: () => setViewMode("outline") },
+    { id: "undo",           label: "元に戻す (Undo)",                  icon: <Undo2 className="w-4 h-4" />,         group: "編集",       shortcut: "⌘Z",  action: undo },
+    { id: "redo",           label: "やり直す (Redo)",                  icon: <Redo2 className="w-4 h-4" />,         group: "編集",       shortcut: "⌘⇧Z", action: redo },
+    { id: "fit-view",       label: "全体を表示 (Fit View)",            icon: <LayoutGrid className="w-4 h-4" />,    group: "表示",       action: () => fitView({ duration: 300 }) },
   ], [addNode, addStrategyNode, addChildBranch, undo, redo, fitView]);
 
   return (
     <div className="flex h-full w-full relative">
       <div className="flex-1">
         {viewMode === "outline" ? (
-          <OutlineView nodes={nodes} edges={edges} />
+          <OutlineView
+            nodes={nodes}
+            edges={edges}
+            onBack={() => setViewMode("map")}
+          />
         ) : (
           <ReactFlow
             nodes={nodesWithCallbacks}
@@ -497,71 +507,73 @@ function Canvas({ mapId, initialNodes, initialEdges }: { mapId: string; initialN
             edgeTypes={edgeTypes}
             fitView
             deleteKeyCode={["Delete", "Backspace"]}
-            className="bg-[#0b0f14]"
+            className="bg-[#111827]"
           >
             <Controls />
             <MiniMap nodeStrokeWidth={3} zoomable pannable />
-            <Background variant={BackgroundVariant.Dots} gap={16} size={1} color="#1f2a3a" />
+            <Background variant={BackgroundVariant.Dots} gap={16} size={1} color="#1e2d40" />
 
             {/* ツールバー */}
             <Panel position="top-left">
-              <div className="flex items-center gap-1.5 bg-[#0f172a] border border-[#22304a] rounded-xl px-3 py-2 shadow-sm flex-wrap text-[#d7dde7]">
+              <div className="flex items-center gap-1.5 bg-[#1a2233] border border-[#2d3f5a] rounded-xl px-3 py-2 shadow-md flex-wrap text-[#c9d4ea]">
+
                 {/* 汎用ノード */}
                 <button onClick={() => addNode("text")}
-                  className="px-2 py-1 text-[11px] bg-[#101826] hover:bg-[#172033] rounded-lg text-[#d7dde7] inline-flex items-center gap-1" title="テキスト追加">
+                  className="px-2 py-1 text-[11px] bg-[#202d42] hover:bg-[#263550] rounded-lg text-[#c9d4ea] inline-flex items-center gap-1">
                   <FileText className="w-3.5 h-3.5" /> テキスト
                 </button>
                 <button onClick={() => addNode("recording", { label: "録音メモ" })}
-                  className="px-2 py-1 text-[11px] bg-[#2a1313] hover:bg-[#3a1616] rounded-lg text-[#ffb4b4] inline-flex items-center gap-1" title="録音追加">
+                  className="px-2 py-1 text-[11px] bg-[#2a1313] hover:bg-[#3a1a1a] rounded-lg text-[#ffb4b4] inline-flex items-center gap-1">
                   <Mic className="w-3.5 h-3.5" /> 録音
                 </button>
 
-                <div className="w-px h-4 bg-[#22304a] mx-0.5" />
+                <div className="w-px h-4 bg-[#2d3f5a] mx-0.5" />
 
                 {/* 戦略ツリー */}
                 <button onClick={() => addStrategyNode(1)}
-                  className="px-2 py-1 text-[11px] bg-[#2a1010] hover:bg-[#3a1515] rounded-lg text-[#fca5a5] inline-flex items-center gap-1" title="現象ノード追加">
-                  <MessageSquare className="w-3.5 h-3.5" /> 現象
+                  className="px-2 py-1 text-[11px] bg-[#2a1010] hover:bg-[#3a1515] rounded-lg text-[#fca5a5] inline-flex items-center gap-1" title="代表アウトノード追加">
+                  <MessageSquare className="w-3.5 h-3.5" /> 代表アウト
                 </button>
                 <button onClick={() => addStrategyNode(2)}
-                  className="px-2 py-1 text-[11px] bg-[#0e1a2e] hover:bg-[#132238] rounded-lg text-[#93c5fd] inline-flex items-center gap-1" title="心理ノード追加">
-                  <Lightbulb className="w-3.5 h-3.5" /> 心理
+                  className="px-2 py-1 text-[11px] bg-[#0e1a2e] hover:bg-[#132238] rounded-lg text-[#93c5fd] inline-flex items-center gap-1" title="代表心理ノード追加">
+                  <Lightbulb className="w-3.5 h-3.5" /> 代表心理
                 </button>
                 <button onClick={() => addStrategyNode(3)}
                   className="px-2 py-1 text-[11px] bg-[#0a1f16] hover:bg-[#0e2a1e] rounded-lg text-[#6ee7b7] inline-flex items-center gap-1" title="実行ノード追加">
                   <Target className="w-3.5 h-3.5" /> 実行
                 </button>
 
-                <div className="w-px h-4 bg-[#22304a] mx-0.5" />
+                <div className="w-px h-4 bg-[#2d3f5a] mx-0.5" />
 
                 <button onClick={() => setShowPanel((v) => !v)}
-                  className={`px-2 py-1 text-[11px] rounded-lg font-medium ${showPanel ? "bg-blue-600 text-white" : "bg-[#101826] text-[#c9d4ea] hover:bg-[#172033]"}`}>
+                  className={`px-2 py-1 text-[11px] rounded-lg font-medium ${showPanel ? "bg-blue-600 text-white" : "bg-[#202d42] text-[#c9d4ea] hover:bg-[#263550]"}`}>
                   スクリプト
                 </button>
+
+                {/* アウトライン切替 */}
                 <button
-                  onClick={() => setViewMode((m) => (m === "map" ? "outline" : "map"))}
-                  className="px-2 py-1 text-[11px] bg-[#0b0f14] border border-[#22304a] hover:bg-[#101826] rounded-lg text-[#d7dde7] inline-flex items-center gap-1"
-                  title="表示モード切替"
+                  onClick={() => setViewMode("outline")}
+                  className="px-2 py-1 text-[11px] bg-[#202d42] hover:bg-[#263550] border border-[#2d3f5a] rounded-lg text-[#c9d4ea] inline-flex items-center gap-1"
+                  title="アウトライン表示"
                 >
-                  {viewMode === "map" ? <FileText className="w-3.5 h-3.5" /> : <LayoutGrid className="w-3.5 h-3.5" />}
-                  {viewMode === "map" ? "アウトライン" : "マップ"}
+                  <FileText className="w-3.5 h-3.5" /> アウトライン
                 </button>
 
-                <div className="w-px h-4 bg-[#22304a] mx-0.5" />
+                <div className="w-px h-4 bg-[#2d3f5a] mx-0.5" />
 
                 <button onClick={undo}
-                  className="px-2 py-1 text-[11px] bg-[#101826] hover:bg-[#172033] rounded-lg text-[#c9d4ea]" title="元に戻す (⌘Z)">
+                  className="px-2 py-1 text-[11px] bg-[#202d42] hover:bg-[#263550] rounded-lg text-[#c9d4ea]" title="元に戻す (⌘Z)">
                   <Undo2 className="w-3.5 h-3.5" />
                 </button>
                 <button onClick={redo}
-                  className="px-2 py-1 text-[11px] bg-[#101826] hover:bg-[#172033] rounded-lg text-[#c9d4ea]" title="やり直す (⌘⇧Z)">
+                  className="px-2 py-1 text-[11px] bg-[#202d42] hover:bg-[#263550] rounded-lg text-[#c9d4ea]" title="やり直す (⌘⇧Z)">
                   <Redo2 className="w-3.5 h-3.5" />
                 </button>
                 <button onClick={() => setShowCmd(true)}
-                  className="px-2 py-1 text-[11px] bg-[#22304a] hover:bg-[#2b3b5b] rounded-lg text-white font-medium" title="コマンドパレット (⌘K)">
+                  className="px-2 py-1 text-[11px] bg-[#2d3f5a] hover:bg-[#3a4f70] rounded-lg text-white font-medium" title="コマンドパレット (⌘K)">
                   ⌘K
                 </button>
-                <span className="ml-1 text-[10px] text-stone-400">
+                <span className="ml-1 text-[10px] text-[#5a7090]">
                   {saveStatus === "saving" ? "保存中..." : saveStatus === "saved" ? "保存済み" : "未保存"}
                 </span>
               </div>
@@ -569,8 +581,8 @@ function Canvas({ mapId, initialNodes, initialEdges }: { mapId: string; initialN
 
             {/* ショートカットヒント */}
             <Panel position="bottom-center">
-              <div className="text-[10px] text-[#4a6080] bg-[#0b0f14]/80 px-3 py-1 rounded-full border border-[#1a2535]">
-                接続でラベル自動追加 / エッジをダブルクリックで編集 / 戦略ノード選択中 ⌘↩ で次の段を生成
+              <div className="text-[10px] text-[#4a6080] bg-[#111827]/80 px-3 py-1 rounded-full border border-[#1e2d40]">
+                接続でラベル自動追加 / エッジをダブルクリックで編集 / 代表アウト or 代表心理を選択して ⌘↩ で次の段を多分岐生成
               </div>
             </Panel>
           </ReactFlow>
@@ -593,23 +605,33 @@ function Canvas({ mapId, initialNodes, initialEdges }: { mapId: string; initialN
   );
 }
 
-function OutlineView({ nodes, edges }: { nodes: Node[]; edges: Edge[] }) {
+function OutlineView({ nodes, edges, onBack }: { nodes: Node[]; edges: Edge[]; onBack: () => void }) {
   const { lines } = useMemo(() => buildOutlineLines(nodes, edges), [nodes, edges]);
   const text = lines.join("\n");
 
   return (
-    <div className="h-full w-full bg-[#0b0f14] text-[#d7dde7] p-4 overflow-auto">
-      <div className="flex items-center justify-between mb-3">
-        <div className="text-xs text-[#7f8aa3]">アウトライン表示（ツリー）</div>
+    <div className="h-full w-full bg-[#111827] text-[#c9d4ea] p-4 overflow-auto">
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-3">
+          {/* マップに戻るボタン */}
+          <button
+            onClick={onBack}
+            className="inline-flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-[#1a2233] border border-[#2d3f5a] hover:bg-[#263550] text-[#c9d4ea] font-medium transition-colors"
+            title="マップ表示に戻る"
+          >
+            <LayoutGrid className="w-3.5 h-3.5" /> マップに戻る
+          </button>
+          <span className="text-xs text-[#5a7090]">アウトライン表示</span>
+        </div>
         <button
-          className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-[#22304a] hover:bg-[#101826]"
+          className="inline-flex items-center gap-1.5 text-xs px-2 py-1 rounded border border-[#2d3f5a] hover:bg-[#1a2233] text-[#c9d4ea]"
           onClick={async () => { await navigator.clipboard.writeText(text); }}
           title="コピー"
         >
           <Clipboard className="w-3.5 h-3.5" /> コピー
         </button>
       </div>
-      <pre className="text-[12px] leading-6 whitespace-pre-wrap">{text || "- （ノードがありません）"}</pre>
+      <pre className="text-[12px] leading-7 whitespace-pre-wrap text-[#c9d4ea]">{text || "- （ノードがありません）"}</pre>
     </div>
   );
 }

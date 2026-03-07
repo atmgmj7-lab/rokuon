@@ -5,9 +5,9 @@ import { Lightbulb, MessageSquare, Target } from "lucide-react";
 import NodeVoiceNote from "./NodeVoiceNote";
 
 const TIER_CONFIG = {
-  strategy1: { color: "#EF4444", bg: "#FEF2F2", Icon: MessageSquare, tier: "現象" },
-  strategy2: { color: "#3B82F6", bg: "#EFF6FF", Icon: Lightbulb,     tier: "心理" },
-  strategy3: { color: "#10B981", bg: "#ECFDF5", Icon: Target,         tier: "実行" },
+  strategy1: { color: "#EF4444", bg: "#FEF2F2", Icon: MessageSquare, tier: "代表アウト", hasAudio: false },
+  strategy2: { color: "#3B82F6", bg: "#EFF6FF", Icon: Lightbulb,     tier: "代表心理",  hasAudio: false },
+  strategy3: { color: "#10B981", bg: "#ECFDF5", Icon: Target,         tier: "実行",      hasAudio: true  },
 } as const;
 
 export interface StrategyNodeData {
@@ -23,7 +23,7 @@ export interface StrategyNodeData {
 export default function StrategyNode({ id, type, data, selected }: NodeProps<StrategyNodeData>) {
   const tierKey = (type ?? "strategy1") as keyof typeof TIER_CONFIG;
   const cfg     = TIER_CONFIG[tierKey] ?? TIER_CONFIG.strategy1;
-  const { color, bg, Icon, tier } = cfg;
+  const { color, bg, Icon, tier, hasAudio } = cfg;
 
   const [editing, setEditing] = useState(false);
   const [label,   setLabel]   = useState(data.label);
@@ -79,16 +79,18 @@ export default function StrategyNode({ id, type, data, selected }: NodeProps<Str
         )}
       </div>
 
-      {/* 音声メモ */}
-      <div className="px-3 py-2">
-        <NodeVoiceNote
-          nodeId={id}
-          audioUrl={data.audio_url ?? null}
-          r2Key={data.r2_key ?? null}
-          onSaved={(nid, url, r2) => data.onRecordingSaved?.(nid, url, r2)}
-          onDeleted={(nid) => data.onAudioDeleted?.(nid)}
-        />
-      </div>
+      {/* 音声メモ（実行ノードのみ） */}
+      {hasAudio && (
+        <div className="px-3 py-2">
+          <NodeVoiceNote
+            nodeId={id}
+            audioUrl={data.audio_url ?? null}
+            r2Key={data.r2_key ?? null}
+            onSaved={(nid, url, r2) => data.onRecordingSaved?.(nid, url, r2)}
+            onDeleted={(nid) => data.onAudioDeleted?.(nid)}
+          />
+        </div>
+      )}
     </div>
   );
 }
