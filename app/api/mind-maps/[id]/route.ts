@@ -35,7 +35,7 @@ export async function GET(request: NextRequest, { params }: Params) {
         args: [id],
       }),
       db.execute({
-        sql: "SELECT id, node_type, script_item_id, label, content, audio_url, r2_key, color, pos_x, pos_y, width, height FROM map_nodes WHERE map_id = ? ORDER BY created_at ASC",
+        sql: "SELECT id, node_type, script_item_id, title, label, content, audio_url, r2_key, parent_id, color, pos_x, pos_y, width, height FROM map_nodes WHERE map_id = ? ORDER BY created_at ASC",
         args: [id],
       }),
       db.execute({
@@ -49,10 +49,12 @@ export async function GET(request: NextRequest, { params }: Params) {
       id:             r.id as string,
       node_type:      r.node_type as string,
       script_item_id: r.script_item_id as string | null,
+      title:          (r.title as string | null) ?? null,
       label:          r.label as string,
       content:        r.content as string | null,
       audio_url:      r.audio_url as string | null,
       r2_key:         r.r2_key as string | null,
+      parent_id:      (r.parent_id as string | null) ?? null,
       color:          r.color as string,
       pos_x:          r.pos_x as number,
       pos_y:          r.pos_y as number,

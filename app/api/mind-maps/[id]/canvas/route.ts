@@ -12,10 +12,12 @@ interface NodePayload {
   id: string;
   node_type: string;
   script_item_id?: string | null;
+  title?: string;
   label: string;
   content?: string | null;
   audio_url?: string | null;
   r2_key?: string | null;
+  parent_id?: string | null;
   color?: string;
   pos_x: number;
   pos_y: number;
@@ -62,11 +64,13 @@ export async function PUT(request: NextRequest, { params }: Params) {
     for (const n of body.nodes) {
       statements.push({
         sql: `INSERT INTO map_nodes
-              (id, map_id, node_type, script_item_id, label, content, audio_url, r2_key, color, pos_x, pos_y, width, height, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              (id, map_id, node_type, script_item_id, title, label, content, audio_url, r2_key, parent_id, color, pos_x, pos_y, width, height, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
           n.id, mapId, n.node_type, n.script_item_id ?? null,
+          n.title ?? n.label,
           n.label, n.content ?? null, n.audio_url ?? null, n.r2_key ?? null,
+          n.parent_id ?? null,
           n.color ?? "#3B82F6", n.pos_x, n.pos_y,
           n.width ?? 200, n.height ?? 80,
           now, now,

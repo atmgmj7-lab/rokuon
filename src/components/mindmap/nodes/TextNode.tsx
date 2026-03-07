@@ -12,6 +12,7 @@ export interface TextNodeData {
   audio_url?: string | null;
   r2_key?: string | null;
   onRecordingSaved?: (id: string, audioUrl: string, r2Key: string) => void;
+  onAudioDeleted?:   (id: string) => void;
   onLabelChange?: (id: string, label: string) => void;
   onContentChange?: (id: string, content: string) => void;
   onColorChange?:   (id: string, color: string)   => void;
@@ -165,7 +166,9 @@ export default function TextNode({ id, data, selected }: NodeProps<TextNodeData>
         <NodeVoiceNote
           nodeId={id}
           audioUrl={data.audio_url ?? null}
+          r2Key={data.r2_key ?? null}
           onSaved={(nid, url, r2) => data.onRecordingSaved?.(nid, url, r2)}
+          onDeleted={(nid) => data.onAudioDeleted?.(nid)}
         />
       </div>
     </div>

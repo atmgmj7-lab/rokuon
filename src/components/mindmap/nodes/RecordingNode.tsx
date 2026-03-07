@@ -33,14 +33,22 @@ export default function RecordingNode({ id, data, selected }: NodeProps<Recordin
     data.onLabelChange?.(id, next);
   };
 
+  const getSupportedMimeType = () => {
+    for (const t of ["audio/webm", "audio/mp4", "audio/ogg"]) {
+      if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(t)) return t;
+    }
+    return "audio/webm";
+  };
+
   const startRecording = async () => {
     setError(null);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mr = new MediaRecorder(stream, { mimeType: "audio/webm" });
+      const stream   = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = getSupportedMimeType();
+      const mr       = new MediaRecorder(stream, { mimeType });
       chunksRef.current = [];
       mr.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
-      mr.onstop = () => handleUpload(stream);
+      mr.onstop = () => handleUpload(stream, mimeType);
       mr.start();
       mediaRecorderRef.current = mr;
       setRecording(true);
@@ -54,24 +62,28 @@ export default function RecordingNode({ id, data, selected }: NodeProps<Recordin
     setRecording(false);
   };
 
-  const handleUpload = async (stream: MediaStream) => {
+  const handleUpload = async (stream: MediaStream, mimeType: string) => {
     stream.getTracks().forEach((t) => t.stop());
     setUploading(true);
     try {
-      const blob     = new Blob(chunksRef.current, { type: "audio/webm" });
-      const filename = `mindmap_${id}_${Date.now()}.webm`;
-      const presRes  = await fetch("/api/upload-presigned", {
+      const ext      = mimeType.includes("mp4") ? ".mp4" : mimeType.includes("ogg") ? ".ogg" : ".webm";
+      const blob     = new Blob(chunksRef.current, { type: mimeType });
+      const filename = `mindmap_${id}_${Date.now()}${ext}`;
+      const presRes  = await fetch("/api/mindmap-audio", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ filename, contentType: "audio/webm" }),
+        body: JSON.stringify({ filename, contentType: mimeType }),
       });
-      const presJson = await presRes.json() as { putUrl: string; r2Key: string; audioUrl: string };
-      if (!presRes.ok) throw new Error("URL取得失敗");
-      await fetch(presJson.putUrl, {
+      const presJson = await presRes.json() as { putUrl?: string; r2Key?: string; audioUrl?: string; error?: string };
+      if (!presRes.ok || !presJson.putUrl || !presJson.r2Key || !presJson.audioUrl) {
+        throw new Error(presJson.error ?? "URL取得失敗");
+      }
+      const putRes = await fetch(presJson.putUrl, {
         method: "PUT",
-        headers: { "Content-Type": "audio/webm" },
+        headers: { "Content-Type": mimeType },
         body: blob,
       });
+      if (!putRes.ok) throw new Error(`アップロードに失敗しました (${putRes.status})`);
       setAudioUrl(presJson.audioUrl);
       data.onRecordingSaved?.(id, presJson.audioUrl, presJson.r2Key);
     } catch (e) {

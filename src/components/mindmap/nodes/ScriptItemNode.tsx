@@ -13,6 +13,7 @@ export interface ScriptItemNodeData {
   audio_url?: string | null;
   r2_key?: string | null;
   onRecordingSaved?: (id: string, audioUrl: string, r2Key: string) => void;
+  onAudioDeleted?:   (id: string) => void;
   onLabelChange?: (id: string, label: string) => void;
   onColorChange?: (id: string, color: string) => void;
 }
@@ -108,7 +109,9 @@ export default function ScriptItemNode({ id, data, selected }: NodeProps<ScriptI
           <NodeVoiceNote
             nodeId={id}
             audioUrl={data.audio_url ?? null}
+            r2Key={data.r2_key ?? null}
             onSaved={(nid, url, r2) => data.onRecordingSaved?.(nid, url, r2)}
+            onDeleted={(nid) => data.onAudioDeleted?.(nid)}
           />
         </div>
       )}

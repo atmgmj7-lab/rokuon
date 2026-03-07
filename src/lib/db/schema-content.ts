@@ -293,10 +293,12 @@ CREATE TABLE IF NOT EXISTS map_nodes (
   map_id TEXT NOT NULL,
   node_type TEXT NOT NULL,
   script_item_id TEXT,
+  title TEXT,
   label TEXT NOT NULL,
   content TEXT,
   audio_url TEXT,
   r2_key TEXT,
+  parent_id TEXT,
   color TEXT DEFAULT '#3B82F6',
   pos_x REAL DEFAULT 0,
   pos_y REAL DEFAULT 0,
@@ -308,6 +310,7 @@ CREATE TABLE IF NOT EXISTS map_nodes (
   FOREIGN KEY (script_item_id) REFERENCES script_items(id) ON DELETE SET NULL
 );
 CREATE INDEX IF NOT EXISTS idx_map_nodes_map_id ON map_nodes(map_id);
+CREATE INDEX IF NOT EXISTS idx_map_nodes_parent_id ON map_nodes(parent_id);
 
 -- マインドマップ エッジ（ノード間接続）
 CREATE TABLE IF NOT EXISTS map_edges (

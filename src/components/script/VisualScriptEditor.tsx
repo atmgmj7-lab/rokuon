@@ -15,6 +15,7 @@ import ReactFlow, {
 } from "reactflow";
 import "reactflow/dist/style.css";
 import type { ScriptNode, ScriptFlowData } from "@/src/types/script";
+import { HelpCircle, MessageSquare, PlayCircle, Save, StopCircle, Tag } from "lucide-react";
 
 interface VisualScriptEditorProps {
   flowData: ScriptFlowData;
@@ -35,10 +36,10 @@ export default function VisualScriptEditor({
         label: (
           <div className="px-2 py-1">
             <div className="font-bold text-sm mb-1">
-              {node.type === "start" && "🚀"}
-              {node.type === "message" && "💬"}
-              {node.type === "question" && "❓"}
-              {node.type === "end" && "✅"}
+              {node.type === "start" && <PlayCircle className="inline-block w-4 h-4 mr-1" />}
+              {node.type === "message" && <MessageSquare className="inline-block w-4 h-4 mr-1" />}
+              {node.type === "question" && <HelpCircle className="inline-block w-4 h-4 mr-1" />}
+              {node.type === "end" && <StopCircle className="inline-block w-4 h-4 mr-1" />}
               {" " + node.type.toUpperCase()}
             </div>
             <div className="text-xs max-w-[200px] overflow-hidden text-ellipsis">
@@ -46,7 +47,10 @@ export default function VisualScriptEditor({
             </div>
             {node.hypothesis_tags && (
               <div className="text-xs mt-1 text-purple-600">
-                🏷️ 属性タグあり
+                <span className="inline-flex items-center gap-1">
+                  <Tag className="w-3.5 h-3.5" />
+                  属性タグあり
+                </span>
               </div>
             )}
           </div>
@@ -131,7 +135,7 @@ export default function VisualScriptEditor({
     };
 
     onSave(updatedFlowData);
-    alert("✅ スクリプトを保存しました！");
+    alert("スクリプトを保存しました");
   };
 
   return (
@@ -158,7 +162,10 @@ export default function VisualScriptEditor({
             onClick={handleSave}
             className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium shadow-lg transition-colors"
           >
-            💾 保存
+            <span className="inline-flex items-center gap-2">
+              <Save className="w-5 h-5" />
+              保存
+            </span>
           </button>
         </div>
       </div>
@@ -177,10 +184,10 @@ export default function VisualScriptEditor({
                 タイプ
               </label>
               <div className="px-3 py-2 bg-gray-100 rounded">
-                {selectedNode.type === "start" && "🚀 開始ノード"}
-                {selectedNode.type === "message" && "💬 メッセージ"}
-                {selectedNode.type === "question" && "❓ 質問"}
-                {selectedNode.type === "end" && "✅ 終了"}
+                {selectedNode.type === "start" && "開始ノード"}
+                {selectedNode.type === "message" && "メッセージ"}
+                {selectedNode.type === "question" && "質問"}
+                {selectedNode.type === "end" && "終了"}
               </div>
             </div>
 
@@ -201,7 +208,7 @@ export default function VisualScriptEditor({
             {selectedNode.hypothesis_tags && (
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
-                  🏷️ 属性フィルター
+                  属性フィルター
                 </label>
                 <div className="space-y-2 text-sm">
                   {selectedNode.hypothesis_tags.hp && (

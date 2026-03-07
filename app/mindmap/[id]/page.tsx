@@ -22,7 +22,7 @@ export default async function MindMapEditorPage({ params }: Props) {
   const [mapRes, nodesRes, edgesRes] = await Promise.all([
     db.execute({ sql: "SELECT id, title, user_id FROM mind_maps WHERE id = ?", args: [id] }),
     db.execute({
-      sql: "SELECT id, node_type, script_item_id, label, content, audio_url, r2_key, color, pos_x, pos_y, width, height FROM map_nodes WHERE map_id = ? ORDER BY created_at ASC",
+      sql: "SELECT id, node_type, script_item_id, title, label, content, audio_url, r2_key, parent_id, color, pos_x, pos_y, width, height FROM map_nodes WHERE map_id = ? ORDER BY created_at ASC",
       args: [id],
     }),
     db.execute({
@@ -39,10 +39,12 @@ export default async function MindMapEditorPage({ params }: Props) {
     id:             r.id as string,
     node_type:      r.node_type as string,
     script_item_id: r.script_item_id as string | null,
+    title:          (r.title as string | null) ?? null,
     label:          r.label as string,
     content:        r.content as string | null,
     audio_url:      r.audio_url as string | null,
     r2_key:         r.r2_key as string | null,
+    parent_id:      (r.parent_id as string | null) ?? null,
     color:          (r.color as string) ?? "#3B82F6",
     pos_x:          (r.pos_x as number) ?? 0,
     pos_y:          (r.pos_y as number) ?? 0,
