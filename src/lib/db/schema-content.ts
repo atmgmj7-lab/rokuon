@@ -274,4 +274,52 @@ CREATE TABLE IF NOT EXISTS region_keywords (
 
 CREATE INDEX IF NOT EXISTS idx_region_keywords_city ON region_keywords(city);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_region_keywords_city_keyword ON region_keywords(prefecture, city, keyword);
+
+-- マインドマップ
+CREATE TABLE IF NOT EXISTS mind_maps (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_mind_maps_user_id ON mind_maps(user_id);
+
+-- マインドマップ ノード (node_type: 'script_item' | 'text' | 'recording' | 'section')
+CREATE TABLE IF NOT EXISTS map_nodes (
+  id TEXT PRIMARY KEY,
+  map_id TEXT NOT NULL,
+  node_type TEXT NOT NULL,
+  script_item_id TEXT,
+  label TEXT NOT NULL,
+  content TEXT,
+  audio_url TEXT,
+  r2_key TEXT,
+  color TEXT DEFAULT '#3B82F6',
+  pos_x REAL DEFAULT 0,
+  pos_y REAL DEFAULT 0,
+  width REAL DEFAULT 200,
+  height REAL DEFAULT 80,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  FOREIGN KEY (map_id) REFERENCES mind_maps(id) ON DELETE CASCADE,
+  FOREIGN KEY (script_item_id) REFERENCES script_items(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS idx_map_nodes_map_id ON map_nodes(map_id);
+
+-- マインドマップ エッジ（ノード間接続）
+CREATE TABLE IF NOT EXISTS map_edges (
+  id TEXT PRIMARY KEY,
+  map_id TEXT NOT NULL,
+  source_node_id TEXT NOT NULL,
+  target_node_id TEXT NOT NULL,
+  label TEXT,
+  created_at INTEGER NOT NULL,
+  FOREIGN KEY (map_id) REFERENCES mind_maps(id) ON DELETE CASCADE,
+  FOREIGN KEY (source_node_id) REFERENCES map_nodes(id) ON DELETE CASCADE,
+  FOREIGN KEY (target_node_id) REFERENCES map_nodes(id) ON DELETE CASCADE
+);
+CREATE INDEX IF NOT EXISTS idx_map_edges_map_id ON map_edges(map_id);
 `;

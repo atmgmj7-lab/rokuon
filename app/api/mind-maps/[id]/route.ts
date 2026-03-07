@@ -1,0 +1,144 @@
+import { NextRequest, NextResponse } from "next/server";
+import { db } from "@/src/lib/db";
+import { getSessionFromRequest } from "@/src/lib/auth-request";
+
+type Params = { params: Promise<{ id: string }> };
+
+async function getMapAndCheckOwner(mapId: string, userId: string) {
+  const res = await db.execute({
+    sql: "SELECT id, user_id FROM mind_maps WHERE id = ?",
+    args: [mapId],
+  });
+  const row = res.rows[0];
+  if (!row) return { error: "見つかりません", status: 404 };
+  if ((row.user_id as string) !== userId) return { error: "権限がありません", status: 403 };
+  return { ok: true };
+}
+
+export async function GET(request: NextRequest, { params }: Params) {
+  const session = await getSessionFromRequest(request);
+  if (!session) {
+    return NextResponse.json({ success: false, error: "認証が必要です" }, { status: 401 });
+  }
+
+  const { id } = await params;
+
+  try {
+    const check = await getMapAndCheckOwner(id, session.id);
+    if ("error" in check) {
+      return NextResponse.json({ success: false, error: check.error }, { status: check.status });
+    }
+
+    const [mapRes, nodesRes, edgesRes] = await Promise.all([
+      db.execute({
+        sql: "SELECT id, title, description, created_at, updated_at FROM mind_maps WHERE id = ?",
+        args: [id],
+      }),
+      db.execute({
+        sql: "SELECT id, node_type, script_item_id, label, content, audio_url, r2_key, color, pos_x, pos_y, width, height FROM map_nodes WHERE map_id = ? ORDER BY created_at ASC",
+        args: [id],
+      }),
+      db.execute({
+        sql: "SELECT id, source_node_id, target_node_id, label FROM map_edges WHERE map_id = ?",
+        args: [id],
+      }),
+    ]);
+
+    const map = mapRes.rows[0];
+    const nodes = nodesRes.rows.map((r) => ({
+      id:             r.id as string,
+      node_type:      r.node_type as string,
+      script_item_id: r.script_item_id as string | null,
+      label:          r.label as string,
+      content:        r.content as string | null,
+      audio_url:      r.audio_url as string | null,
+      r2_key:         r.r2_key as string | null,
+      color:          r.color as string,
+      pos_x:          r.pos_x as number,
+      pos_y:          r.pos_y as number,
+      width:          r.width as number,
+      height:         r.height as number,
+    }));
+    const edges = edgesRes.rows.map((r) => ({
+      id:             r.id as string,
+      source_node_id: r.source_node_id as string,
+      target_node_id: r.target_node_id as string,
+      label:          r.label as string | null,
+    }));
+
+    return NextResponse.json({
+      success: true,
+      data: {
+        map: {
+          id:          map.id as string,
+          title:       map.title as string,
+          description: map.description as string | null,
+          created_at:  map.created_at as number,
+          updated_at:  map.updated_at as number,
+        },
+        nodes,
+        edges,
+      },
+    });
+  } catch (error) {
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : "取得に失敗しました" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(request: NextRequest, { params }: Params) {
+  const session = await getSessionFromRequest(request);
+  if (!session) {
+    return NextResponse.json({ success: false, error: "認証が必要です" }, { status: 401 });
+  }
+
+  const { id } = await params;
+
+  try {
+    const check = await getMapAndCheckOwner(id, session.id);
+    if ("error" in check) {
+      return NextResponse.json({ success: false, error: check.error }, { status: check.status });
+    }
+
+    const body = await request.json() as { title?: string; description?: string };
+    const now  = Date.now();
+
+    await db.execute({
+      sql: "UPDATE mind_maps SET title = COALESCE(?, title), description = COALESCE(?, description), updated_at = ? WHERE id = ?",
+      args: [body.title ?? null, body.description ?? null, now, id],
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : "更新に失敗しました" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest, { params }: Params) {
+  const session = await getSessionFromRequest(request);
+  if (!session) {
+    return NextResponse.json({ success: false, error: "認証が必要です" }, { status: 401 });
+  }
+
+  const { id } = await params;
+
+  try {
+    const check = await getMapAndCheckOwner(id, session.id);
+    if ("error" in check) {
+      return NextResponse.json({ success: false, error: check.error }, { status: check.status });
+    }
+
+    await db.execute({ sql: "DELETE FROM mind_maps WHERE id = ?", args: [id] });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json(
+      { success: false, error: error instanceof Error ? error.message : "削除に失敗しました" },
+      { status: 500 }
+    );
+  }
+}

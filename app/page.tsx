@@ -33,6 +33,12 @@ export default async function Home({
           {/* 機能メニュー */}
           <div className="flex gap-4 justify-center mb-8 flex-wrap">
             <Link
+              href="/mindmap"
+              className="px-10 py-6 bg-[#5B6AD0] hover:bg-[#4B5AC0] text-white rounded-2xl font-bold text-lg transition-all shadow-paper-md"
+            >
+              マインドマップ
+            </Link>
+            <Link
               href="/call"
               className="px-10 py-6 bg-[#C87A55] hover:bg-[#B56A45] text-white rounded-2xl font-bold text-lg transition-all shadow-paper-md"
             >
