@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { Keyboard, X } from "lucide-react";
 
 const SHORTCUTS = [
   { key: "⌘K / Ctrl+K",        desc: "コマンドパレットを開く" },
@@ -20,8 +21,13 @@ export default function ShortcutHelp() {
       {open && (
         <div className="mb-2 w-72 bg-white border border-stone-200 rounded-2xl shadow-lg overflow-hidden">
           <div className="px-4 py-3 bg-stone-50 border-b border-stone-100 flex items-center justify-between">
-            <span className="text-xs font-bold text-stone-600">⌨️ キーボードショートカット</span>
-            <button onClick={() => setOpen(false)} className="text-stone-400 hover:text-stone-600 text-sm">✕</button>
+            <span className="text-xs font-bold text-stone-600 inline-flex items-center gap-1.5">
+              <Keyboard className="w-4 h-4" />
+              キーボードショートカット
+            </span>
+            <button onClick={() => setOpen(false)} className="text-stone-400 hover:text-stone-600">
+              <X className="w-4 h-4" />
+            </button>
           </div>
           <div className="divide-y divide-stone-100">
             {SHORTCUTS.map(({ key, desc }) => (

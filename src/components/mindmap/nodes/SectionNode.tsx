@@ -2,10 +2,15 @@
 import { Handle, Position, NodeProps, NodeResizer } from "reactflow";
 import { useState } from "react";
 import ColorPicker from "../ColorPicker";
+import NodeVoiceNote from "./NodeVoiceNote";
+import { Palette, Shapes } from "lucide-react";
 
 export interface SectionNodeData {
   label: string;
   color?: string;
+  audio_url?: string | null;
+  r2_key?: string | null;
+  onRecordingSaved?: (id: string, audioUrl: string, r2Key: string) => void;
   onLabelChange?:  (id: string, label: string) => void;
   onColorChange?:  (id: string, color: string) => void;
 }
@@ -48,6 +53,7 @@ export default function SectionNode({ id, data, selected }: NodeProps<SectionNod
       <Handle type="source" position={Position.Right}  id="right" style={{ background: color }} />
 
       <div className="flex items-center gap-1 w-full">
+        <Shapes className="w-4 h-4" style={{ color }} />
         {editing ? (
           <input
             autoFocus
@@ -70,9 +76,11 @@ export default function SectionNode({ id, data, selected }: NodeProps<SectionNod
         {selected && (
           <button
             onMouseDown={(e) => { e.stopPropagation(); setShowColors((v) => !v); }}
-            className="text-[11px] opacity-60 hover:opacity-100 ml-1"
+            className="opacity-80 hover:opacity-100 ml-1"
             title="色を変更"
-          >🎨</button>
+          >
+            <Palette className="w-4 h-4" />
+          </button>
         )}
       </div>
 
@@ -84,6 +92,14 @@ export default function SectionNode({ id, data, selected }: NodeProps<SectionNod
           />
         </div>
       )}
+
+      <div className="mt-2">
+        <NodeVoiceNote
+          nodeId={id}
+          audioUrl={data.audio_url ?? null}
+          onSaved={(nid, url, r2) => data.onRecordingSaved?.(nid, url, r2)}
+        />
+      </div>
     </div>
   );
 }

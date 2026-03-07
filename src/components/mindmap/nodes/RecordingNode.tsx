@@ -2,6 +2,7 @@
 import { Handle, Position, NodeProps, NodeResizer } from "reactflow";
 import { useState, useRef } from "react";
 import ColorPicker from "../ColorPicker";
+import { Mic, Palette, Square } from "lucide-react";
 
 export interface RecordingNodeData {
   label: string;
@@ -10,6 +11,7 @@ export interface RecordingNodeData {
   color?: string;
   onRecordingSaved?: (id: string, audioUrl: string, r2Key: string) => void;
   onColorChange?:    (id: string, color: string) => void;
+  onLabelChange?:    (id: string, label: string) => void;
 }
 
 export default function RecordingNode({ id, data, selected }: NodeProps<RecordingNodeData>) {
@@ -18,9 +20,18 @@ export default function RecordingNode({ id, data, selected }: NodeProps<Recordin
   const [audioUrl, setAudioUrl]       = useState(data.audio_url ?? null);
   const [error, setError]             = useState<string | null>(null);
   const [showColors, setShowColors]   = useState(false);
+  const [editing, setEditing]         = useState(false);
+  const [label, setLabel]             = useState(data.label);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef        = useRef<Blob[]>([]);
   const color = data.color ?? "#EF4444";
+
+  const commitLabel = () => {
+    setEditing(false);
+    const next = label.trim() || "無題";
+    setLabel(next);
+    data.onLabelChange?.(id, next);
+  };
 
   const startRecording = async () => {
     setError(null);
@@ -91,14 +102,29 @@ export default function RecordingNode({ id, data, selected }: NodeProps<Recordin
         className="px-3 py-1.5 rounded-t-xl text-white text-[10px] font-bold flex items-center gap-1"
         style={{ backgroundColor: color }}
       >
-        <span>🎙️</span>
-        <span className="flex-1 truncate">{data.label}</span>
+        <Mic className="w-3.5 h-3.5 opacity-90" />
+        {editing ? (
+          <input
+            autoFocus
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            onBlur={commitLabel}
+            onKeyDown={(e) => { if (e.key === "Enter") commitLabel(); }}
+            className="flex-1 bg-white/15 rounded px-1 py-0.5 text-[10px] outline-none"
+          />
+        ) : (
+          <span className="flex-1 truncate" onDoubleClick={() => setEditing(true)} title="ダブルクリックでタイトル編集">
+            {label}
+          </span>
+        )}
         {selected && (
           <button
             onMouseDown={(e) => { e.stopPropagation(); setShowColors((v) => !v); }}
             className="opacity-70 hover:opacity-100"
             title="色を変更"
-          >🎨</button>
+          >
+            <Palette className="w-3.5 h-3.5" />
+          </button>
         )}
       </div>
 
@@ -122,14 +148,18 @@ export default function RecordingNode({ id, data, selected }: NodeProps<Recordin
             <button
               onClick={stopRecording}
               className="flex items-center gap-1 px-3 py-1.5 bg-red-500 text-white rounded-full text-[11px] font-bold animate-pulse"
-            >■ 停止</button>
+            >
+              <Square className="w-3.5 h-3.5" /> 停止
+            </button>
           ) : uploading ? (
             <span className="text-[11px] text-stone-400">アップロード中...</span>
           ) : (
             <button
               onClick={startRecording}
               className="flex items-center gap-1 px-3 py-1.5 bg-red-100 text-red-600 hover:bg-red-200 rounded-full text-[11px] font-bold"
-            >● 録音</button>
+            >
+              <Mic className="w-3.5 h-3.5" /> 録音
+            </button>
           )}
         </div>
         {error && <p className="text-[10px] text-red-500 text-center">{error}</p>}

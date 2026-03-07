@@ -2,11 +2,17 @@
 import { Handle, Position, NodeProps, NodeResizer } from "reactflow";
 import { useState, useRef, useEffect } from "react";
 import ColorPicker from "../ColorPicker";
+import NodeVoiceNote from "./NodeVoiceNote";
+import { Highlighter, Palette, Type } from "lucide-react";
 
 export interface TextNodeData {
   label: string;
   content?: string;
   color?: string;
+  audio_url?: string | null;
+  r2_key?: string | null;
+  onRecordingSaved?: (id: string, audioUrl: string, r2Key: string) => void;
+  onLabelChange?: (id: string, label: string) => void;
   onContentChange?: (id: string, content: string) => void;
   onColorChange?:   (id: string, color: string)   => void;
 }
@@ -25,7 +31,9 @@ function renderHighlighted(text: string) {
 
 export default function TextNode({ id, data, selected }: NodeProps<TextNodeData>) {
   const [editing, setEditing]     = useState(false);
-  const [text, setText]           = useState(data.content ?? data.label);
+  const [text, setText]           = useState(data.content ?? "");
+  const [titleEditing, setTitleEditing] = useState(false);
+  const [title, setTitle]         = useState(data.label);
   const [showColors, setShowColors] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const color = data.color ?? "#6B7280";
@@ -37,6 +45,13 @@ export default function TextNode({ id, data, selected }: NodeProps<TextNodeData>
   const handleBlur = () => {
     setEditing(false);
     data.onContentChange?.(id, text);
+  };
+
+  const handleTitleBlur = () => {
+    setTitleEditing(false);
+    const next = title.trim() || "無題";
+    setTitle(next);
+    data.onLabelChange?.(id, next);
   };
 
   /** 選択テキストを == で囲む */
@@ -71,14 +86,30 @@ export default function TextNode({ id, data, selected }: NodeProps<TextNodeData>
         className="px-2 py-1 rounded-t-xl text-white text-[9px] font-bold flex items-center gap-1"
         style={{ backgroundColor: color }}
       >
-        <span>✏️ テキスト</span>
+        <Type className="w-3.5 h-3.5 opacity-90" />
+        {titleEditing ? (
+          <input
+            autoFocus
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onBlur={handleTitleBlur}
+            onKeyDown={(e) => { if (e.key === "Enter") handleTitleBlur(); }}
+            className="flex-1 bg-white/15 rounded px-1 py-0.5 text-[10px] outline-none"
+          />
+        ) : (
+          <span className="flex-1 truncate" onDoubleClick={() => setTitleEditing(true)} title="ダブルクリックでタイトル編集">
+            {title}
+          </span>
+        )}
         {selected && (
           <>
             <button
               onMouseDown={(e) => { e.stopPropagation(); setShowColors((v) => !v); }}
               className="ml-auto opacity-70 hover:opacity-100"
               title="色を変更"
-            >🎨</button>
+            >
+              <Palette className="w-3.5 h-3.5" />
+            </button>
           </>
         )}
       </div>
@@ -107,7 +138,9 @@ export default function TextNode({ id, data, selected }: NodeProps<TextNodeData>
                 className="text-[9px] px-1.5 py-0.5 bg-yellow-100 text-yellow-700 rounded hover:bg-yellow-200"
                 title="選択範囲をハイライト (==text==)"
               >
-                🖊 HL
+                <span className="inline-flex items-center gap-1">
+                  <Highlighter className="w-3 h-3" /> HL
+                </span>
               </button>
             </div>
             <textarea
@@ -126,6 +159,14 @@ export default function TextNode({ id, data, selected }: NodeProps<TextNodeData>
             )}
           </p>
         )}
+      </div>
+
+      <div className="px-3 pb-2">
+        <NodeVoiceNote
+          nodeId={id}
+          audioUrl={data.audio_url ?? null}
+          onSaved={(nid, url, r2) => data.onRecordingSaved?.(nid, url, r2)}
+        />
       </div>
     </div>
   );

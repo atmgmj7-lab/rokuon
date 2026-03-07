@@ -1,10 +1,12 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
+import { Command as CommandIcon } from "lucide-react";
 
 export interface Command {
   id:      string;
   label:   string;
-  icon:    string;
+  icon:    ReactNode;
   group:   string;
   shortcut?: string;
   action:  () => void;
@@ -55,7 +57,7 @@ export default function CommandPalette({ commands, onClose }: Props) {
       <div className="w-[480px] bg-white rounded-2xl shadow-2xl border border-stone-200 overflow-hidden">
         {/* 検索バー */}
         <div className="flex items-center gap-3 px-4 py-3 border-b border-stone-100">
-          <span className="text-stone-400 text-sm">⌘</span>
+            <CommandIcon className="w-4 h-4 text-stone-400" />
           <input
             ref={inputRef}
             type="text"
@@ -90,7 +92,7 @@ export default function CommandPalette({ commands, onClose }: Props) {
                           cursor === globalIdx ? "bg-blue-50" : "hover:bg-stone-50"
                         }`}
                       >
-                        <span className="text-base w-6 text-center">{cmd.icon}</span>
+                        <span className="w-6 h-6 flex items-center justify-center text-stone-500">{cmd.icon}</span>
                         <span className="flex-1 text-sm text-stone-700">{cmd.label}</span>
                         {cmd.shortcut && (
                           <kbd className="text-[10px] text-stone-400 bg-stone-100 px-1.5 py-0.5 rounded font-mono">
