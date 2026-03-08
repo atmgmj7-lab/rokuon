@@ -24,7 +24,8 @@ export default async function MindMapEditorPage({ params }: Props) {
     }),
     db.execute({
       sql: `SELECT id, node_type, script_item_id, title, label, content, audio_url, r2_key,
-             parent_id, color, bg_color, border_width, pos_x, pos_y, width, height
+             parent_id, color, bg_color, border_width, font_size, font_color, node_shape,
+             pos_x, pos_y, width, height
              FROM map_nodes WHERE map_id = ? ORDER BY created_at ASC`,
       args: [id],
     }),
@@ -49,8 +50,11 @@ export default async function MindMapEditorPage({ params }: Props) {
     r2_key:         r.r2_key as string | null,
     parent_id:      (r.parent_id as string | null) ?? null,
     color:          (r.color as string) ?? "#78716C",
-    bg_color:       (r.bg_color as string | null) ?? "#FFFFFF",
+    bg_color:       (r.bg_color   as string | null) ?? "#FFFFFF",
     border_width:   (r.border_width as number | null) ?? 1,
+    font_size:      (r.font_size  as number | null) ?? 12,
+    font_color:     (r.font_color as string | null) ?? "#374151",
+    node_shape:     (r.node_shape as string | null) ?? "rounded",
     pos_x:          (r.pos_x as number) ?? 0,
     pos_y:          (r.pos_y as number) ?? 0,
     width:          (r.width as number) ?? 200,

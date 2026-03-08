@@ -21,6 +21,9 @@ interface NodePayload {
   color?: string;
   bg_color?: string | null;
   border_width?: number | null;
+  font_size?: number | null;
+  font_color?: string | null;
+  node_shape?: string | null;
   pos_x: number;
   pos_y: number;
   width?: number;
@@ -67,16 +70,20 @@ export async function PUT(request: NextRequest, { params }: Params) {
       statements.push({
         sql: `INSERT INTO map_nodes
               (id, map_id, node_type, script_item_id, title, label, content, audio_url, r2_key,
-               parent_id, color, bg_color, border_width, pos_x, pos_y, width, height, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+               parent_id, color, bg_color, border_width, font_size, font_color, node_shape,
+               pos_x, pos_y, width, height, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
           n.id, mapId, n.node_type, n.script_item_id ?? null,
           n.title ?? n.label,
           n.label, n.content ?? null, n.audio_url ?? null, n.r2_key ?? null,
           n.parent_id ?? null,
-          n.color ?? "#78716C",
-          n.bg_color ?? "#FFFFFF",
+          n.color      ?? "#78716C",
+          n.bg_color   ?? "#FFFFFF",
           n.border_width ?? 1,
+          n.font_size  ?? 12,
+          n.font_color ?? "#374151",
+          n.node_shape ?? "rounded",
           n.pos_x, n.pos_y,
           n.width ?? 200, n.height ?? 80,
           now, now,

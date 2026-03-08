@@ -11,13 +11,14 @@ import "reactflow/dist/style.css";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import ScriptItemNode, { ScriptItemNodeData } from "./nodes/ScriptItemNode";
 import TextNode,        { TextNodeData }       from "./nodes/TextNode";
+import CommentNode,     { CommentNodeData }    from "./nodes/CommentNode";
 import LabeledEdge,     { LabeledEdgeData, EdgePathType } from "./edges/LabeledEdge";
 import ScriptItemPanel from "./ScriptItemPanel";
-import PersonaPanel    from "./PersonaPanel";
-import CommandPalette, { Command } from "./CommandPalette";
+import RightPanel,      { NodeStyleUpdates }  from "./RightPanel";
+import CommandPalette,  { Command }            from "./CommandPalette";
 import ShortcutHelp from "./ShortcutHelp";
 import {
-  Clipboard, FileText, LayoutGrid, Plus, Redo2, Undo2, User,
+  Clipboard, FileText, LayoutGrid, MessageSquare, Plus, Redo2, Sliders, Undo2,
 } from "lucide-react";
 
 interface DbNode {
@@ -27,6 +28,7 @@ interface DbNode {
   parent_id?: string | null;
   r2_key: string | null; color: string;
   bg_color?: string | null; border_width?: number | null;
+  font_size?: number | null; font_color?: string | null; node_shape?: string | null;
   pos_x: number; pos_y: number; width: number; height: number;
 }
 interface DbEdge {
@@ -37,20 +39,30 @@ interface ScriptItem { id: string; title: string; content: string; folder_name: 
 type Snapshot = { nodes: Node[]; edges: Edge[] };
 
 const NODE_COLORS: Record<string, string> = {
-  script_item: "#C2410C", text: "#78716C",
+  script_item: "#C2410C", text: "#78716C", comment: "#D97706",
 };
 
 function dbNodeToRF(n: DbNode): Node {
-  const base     = { id: n.id, position: { x: n.pos_x, y: n.pos_y } };
-  const label    = (n.title ?? n.label) || n.label;
-  const baseData = {
-    label, audio_url: n.audio_url, r2_key: n.r2_key, parent_id: n.parent_id ?? null,
-    bgColor: n.bg_color ?? "#FFFFFF", borderWidth: n.border_width ?? (n.node_type === "script_item" ? 2 : 1),
+  const sizeStyle = n.height > 100 ? { width: n.width, height: n.height } : { width: n.width };
+  const base      = { id: n.id, position: { x: n.pos_x, y: n.pos_y } };
+  const label     = (n.title ?? n.label) || n.label;
+  const baseData  = {
+    label,
+    audio_url:   n.audio_url,
+    r2_key:      n.r2_key,
+    parent_id:   n.parent_id ?? null,
+    bgColor:     n.bg_color      ?? "#FFFFFF",
+    borderWidth: n.border_width  ?? 1,
+    fontSize:    n.font_size     ?? 12,
+    fontColor:   n.font_color    ?? "#374151",
+    nodeShape:   n.node_shape    ?? "rounded",
   };
 
-  const sizeStyle = n.height > 100 ? { width: n.width, height: n.height } : { width: n.width };
   if (n.node_type === "script_item") {
-    return { ...base, type: "scriptItem", data: { ...baseData, content: n.content, color: n.color, script_item_id: n.script_item_id }, style: sizeStyle };
+    return { ...base, type: "scriptItem", data: { ...baseData, content: n.content, color: n.color || NODE_COLORS.script_item, script_item_id: n.script_item_id, borderWidth: n.border_width ?? 2 }, style: sizeStyle };
+  }
+  if (n.node_type === "comment") {
+    return { ...base, type: "comment", data: { ...baseData, color: n.color || NODE_COLORS.comment }, style: sizeStyle };
   }
   return { ...base, type: "text", data: { ...baseData, content: n.content ?? label, color: n.color || NODE_COLORS.text }, style: sizeStyle };
 }
@@ -66,6 +78,7 @@ function dbEdgeToRF(e: DbEdge): Edge {
 const nodeTypes: NodeTypes = {
   scriptItem: ScriptItemNode,
   text:       TextNode,
+  comment:    CommentNode,
 };
 const edgeTypes: EdgeTypes = { labeled: LabeledEdge };
 
@@ -122,12 +135,12 @@ function Canvas({
 }) {
   const [nodes, setNodes, onNodesChange] = useNodesState(initialNodes.map(dbNodeToRF));
   const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges.map(dbEdgeToRF));
-  const [showPanel,    setShowPanel]    = useState(false);
-  const [showPersona,  setShowPersona]  = useState(false);
-  const [showCmd,      setShowCmd]      = useState(false);
-  const [viewMode,     setViewMode]     = useState<ViewMode>("map");
-  const [saveStatus,   setSaveStatus]   = useState<"saved" | "saving" | "unsaved">("saved");
-  const [edgePathType, setEdgePathType] = useState<EdgePathType>("smoothstep");
+  const [showPanel,      setShowPanel]      = useState(false);
+  const [showRightPanel, setShowRightPanel] = useState(false);
+  const [showCmd,        setShowCmd]        = useState(false);
+  const [viewMode,       setViewMode]       = useState<ViewMode>("map");
+  const [saveStatus,     setSaveStatus]     = useState<"saved" | "saving" | "unsaved">("saved");
+  const [edgePathType,   setEdgePathType]   = useState<EdgePathType>("smoothstep");
   const isFirstRender = useRef(true);
   const syncTimerRef  = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { fitView }   = useReactFlow();
@@ -159,6 +172,19 @@ function Canvas({
     setNodes(snap.nodes); setEdges(snap.edges); setSaveStatus("unsaved");
   }, [setNodes, setEdges]);
 
+  // ----- Selected node (for right panel) -----
+  const selectedNode = useMemo(() => nodes.find((n) => n.selected) ?? null, [nodes]);
+
+  // ----- Node style update (from Design panel) -----
+  const handleNodeStyleUpdate = useCallback((nodeId: string, updates: NodeStyleUpdates) => {
+    setNodes((ns) => {
+      const updated = ns.map((n) => n.id === nodeId ? { ...n, data: { ...n.data, ...updates } } : n);
+      pushHistory(updated, edges);
+      return updated;
+    });
+    setSaveStatus("unsaved");
+  }, [setNodes, edges, pushHistory]);
+
   // ----- Workspace sync (debounced) -----
   const syncToWorkspace = useCallback((scriptItemId: string, title: string, content: string) => {
     if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
@@ -188,30 +214,6 @@ function Canvas({
         onLabelChange: (nodeId: string, label: string) => {
           setNodes((ns) => {
             const updated = ns.map((nd) => nd.id === nodeId ? { ...nd, data: { ...nd.data, label } } : nd);
-            pushHistory(updated, edges);
-            return updated;
-          });
-          setSaveStatus("unsaved");
-        },
-        onColorChange: (nodeId: string, color: string) => {
-          setNodes((ns) => {
-            const updated = ns.map((nd) => nd.id === nodeId ? { ...nd, data: { ...nd.data, color } } : nd);
-            pushHistory(updated, edges);
-            return updated;
-          });
-          setSaveStatus("unsaved");
-        },
-        onBgColorChange: (nodeId: string, bgColor: string) => {
-          setNodes((ns) => {
-            const updated = ns.map((nd) => nd.id === nodeId ? { ...nd, data: { ...nd.data, bgColor } } : nd);
-            pushHistory(updated, edges);
-            return updated;
-          });
-          setSaveStatus("unsaved");
-        },
-        onBorderWidthChange: (nodeId: string, borderWidth: number) => {
-          setNodes((ns) => {
-            const updated = ns.map((nd) => nd.id === nodeId ? { ...nd, data: { ...nd.data, borderWidth } } : nd);
             pushHistory(updated, edges);
             return updated;
           });
@@ -274,7 +276,7 @@ function Canvas({
     [edges, nodes, edgePathType]
   );
 
-  // ----- Connect: LR のみ許可 -----
+  // ----- Connect: LR only -----
   const isValidConnection = useCallback((conn: Connection) => {
     const srcOk = !conn.sourceHandle || conn.sourceHandle === "right";
     const tgtOk = !conn.targetHandle || conn.targetHandle === "left";
@@ -341,20 +343,24 @@ function Canvas({
       position: { x: 80 + Math.random() * 220, y: 80 + Math.random() * 220 },
       type: type === "script_item" ? "scriptItem" : type,
       data: {
-        label: extra?.label ?? "新しいノード",
-        content: extra?.content ?? null,
-        color: NODE_COLORS[type] ?? "#78716C",
-        bgColor: "#FFFFFF",
-        borderWidth: type === "script_item" ? 2 : 1,
+        label:          extra?.label ?? (type === "comment" ? "" : "新しいノード"),
+        content:        extra?.content ?? null,
+        color:          NODE_COLORS[type] ?? "#78716C",
+        bgColor:        type === "comment" ? "#FEFCE8" : "#FFFFFF",
+        borderWidth:    type === "script_item" ? 2 : 1,
+        fontSize:       12,
+        fontColor:      "#374151",
+        nodeShape:      "rounded",
         script_item_id: extra?.script_item_id ?? null,
-        audio_url: null,
+        audio_url:      null,
+        r2_key:         null,
       },
     };
     setNodes((ns) => { const u = [...ns, node]; pushHistory(u, edges); return u; });
     setSaveStatus("unsaved");
   }, [setNodes, edges, pushHistory]);
 
-  // ----- ⌘+Enter: 子ノード追加（任意選択ノードから） -----
+  // ----- ⌘+Enter: child branch from any selected node -----
   const addChildBranch = useCallback(() => {
     const parent = nodes.find((n) => n.selected);
     if (!parent) return;
@@ -369,16 +375,11 @@ function Canvas({
       id:       childId,
       position: { x: childX, y: childY },
       type:     "text",
-      data:     { label: "新しいノード", color: NODE_COLORS.text, bgColor: "#FFFFFF", borderWidth: 1, audio_url: null, r2_key: null, parent_id: parent.id },
+      data:     { label: "新しいノード", color: NODE_COLORS.text, bgColor: "#FFFFFF", borderWidth: 1, fontSize: 12, fontColor: "#374151", nodeShape: "rounded", audio_url: null, r2_key: null, parent_id: parent.id },
     };
     const newEdge: Edge = {
-      id:           `edge_${Date.now()}`,
-      source:       parent.id,
-      target:       childId,
-      sourceHandle: "right",
-      targetHandle: "left",
-      type:         "labeled",
-      label:        "If...",
+      id: `edge_${Date.now()}`, source: parent.id, target: childId,
+      sourceHandle: "right", targetHandle: "left", type: "labeled", label: "If...",
     };
 
     setNodes((ns) => [...ns, childNode]);
@@ -409,7 +410,7 @@ function Canvas({
       const updated = [...ns, {
         id, position: { x: 150 + Math.random() * 150, y: 150 + Math.random() * 150 },
         type: "scriptItem",
-        data: { label: item.title, content: item.content, color: NODE_COLORS.script_item, bgColor: "#FFFFFF", borderWidth: 2, script_item_id: item.id },
+        data: { label: item.title, content: item.content, color: NODE_COLORS.script_item, bgColor: "#FFFFFF", borderWidth: 2, fontSize: 12, fontColor: "#374151", nodeShape: "rounded", script_item_id: item.id },
       }];
       pushHistory(updated, edges);
       return updated;
@@ -427,9 +428,9 @@ function Canvas({
     if (saveStatus === "saved") return;
     setSaveStatus("saving");
 
-    type AnyData = ScriptItemNodeData & TextNodeData & {
+    type AnyData = ScriptItemNodeData & TextNodeData & CommentNodeData & {
       r2_key?: string; audio_url?: string; script_item_id?: string; parent_id?: string | null;
-      bgColor?: string; borderWidth?: number;
+      bgColor?: string; borderWidth?: number; fontSize?: number; fontColor?: string; nodeShape?: string;
     };
     const payload = {
       nodes: debouncedNodes.map((n) => {
@@ -447,6 +448,9 @@ function Canvas({
           color:          d.color ?? NODE_COLORS[n.type ?? "text"] ?? "#78716C",
           bg_color:       d.bgColor ?? "#FFFFFF",
           border_width:   d.borderWidth ?? 1,
+          font_size:      d.fontSize ?? 12,
+          font_color:     d.fontColor ?? "#374151",
+          node_shape:     d.nodeShape ?? "rounded",
           pos_x:          n.position.x,
           pos_y:          n.position.y,
           width:  (n.style?.width  as number | undefined) ?? 200,
@@ -470,15 +474,16 @@ function Canvas({
 
   // ----- Commands -----
   const commands: Command[] = useMemo(() => [
-    { id: "add-text",     label: "テキストノードを追加",     icon: <FileText className="w-4 h-4" />, group: "ノード追加", action: () => addNode("text") },
-    { id: "add-script",   label: "スクリプトノードを追加",   icon: <Plus className="w-4 h-4" />,    group: "ノード追加", action: () => addNode("script_item", { label: "スクリプト" }) },
-    { id: "branch",       label: "子ノード追加 (⌘↩)",       icon: <Plus className="w-4 h-4" />,    group: "ノード追加", shortcut: "⌘↩", action: addChildBranch },
-    { id: "open-scripts", label: "スクリプトパネルを開く",   icon: <FileText className="w-4 h-4" />, group: "パネル",     action: () => setShowPanel(true) },
-    { id: "persona",      label: "ペルソナ設定パネル",       icon: <User className="w-4 h-4" />,    group: "パネル",     action: () => setShowPersona(true) },
-    { id: "outline",      label: "アウトライン表示",         icon: <FileText className="w-4 h-4" />, group: "表示",       action: () => setViewMode("outline") },
-    { id: "undo",         label: "元に戻す",                 icon: <Undo2 className="w-4 h-4" />,   group: "編集",       shortcut: "⌘Z",  action: undo },
-    { id: "redo",         label: "やり直す",                 icon: <Redo2 className="w-4 h-4" />,   group: "編集",       shortcut: "⌘⇧Z", action: redo },
-    { id: "fit-view",     label: "全体を表示",               icon: <LayoutGrid className="w-4 h-4" />, group: "表示",    action: () => fitView({ duration: 300 }) },
+    { id: "add-text",     label: "テキストノードを追加",     icon: <FileText      className="w-4 h-4" />, group: "ノード追加", action: () => addNode("text") },
+    { id: "add-script",   label: "スクリプトノードを追加",   icon: <Plus          className="w-4 h-4" />, group: "ノード追加", action: () => addNode("script_item", { label: "スクリプト" }) },
+    { id: "add-comment",  label: "コメントノードを追加",     icon: <MessageSquare className="w-4 h-4" />, group: "ノード追加", action: () => addNode("comment") },
+    { id: "branch",       label: "子ノード追加 (⌘↩)",       icon: <Plus          className="w-4 h-4" />, group: "ノード追加", shortcut: "⌘↩", action: addChildBranch },
+    { id: "open-scripts", label: "スクリプトパネルを開く",   icon: <FileText      className="w-4 h-4" />, group: "パネル",     action: () => setShowPanel(true) },
+    { id: "right-panel",  label: "右パネルを開く",           icon: <Sliders       className="w-4 h-4" />, group: "パネル",     action: () => setShowRightPanel(true) },
+    { id: "outline",      label: "アウトライン表示",         icon: <FileText      className="w-4 h-4" />, group: "表示",       action: () => setViewMode("outline") },
+    { id: "undo",         label: "元に戻す",                 icon: <Undo2         className="w-4 h-4" />, group: "編集",       shortcut: "⌘Z",  action: undo },
+    { id: "redo",         label: "やり直す",                 icon: <Redo2         className="w-4 h-4" />, group: "編集",       shortcut: "⌘⇧Z", action: redo },
+    { id: "fit-view",     label: "全体を表示",               icon: <LayoutGrid    className="w-4 h-4" />, group: "表示",       action: () => fitView({ duration: 300 }) },
   ], [addNode, addChildBranch, undo, redo, fitView]);
 
   const EDGE_PATH_LABELS: Record<EdgePathType, string> = {
@@ -508,7 +513,7 @@ function Canvas({
             <MiniMap nodeStrokeWidth={3} zoomable pannable className="border border-stone-200 rounded-lg shadow-sm" />
             <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#D6D3D1" />
 
-            {/* ツールバー */}
+            {/* Toolbar */}
             <Panel position="top-left">
               <div className="flex items-center gap-1.5 bg-white border border-stone-200 rounded-xl px-3 py-2 shadow-sm flex-wrap text-stone-700">
                 <button onClick={() => addNode("text")}
@@ -519,6 +524,10 @@ function Canvas({
                   className="px-2 py-1 text-[11px] bg-orange-50 hover:bg-orange-100 rounded-lg text-orange-700 inline-flex items-center gap-1">
                   <Plus className="w-3.5 h-3.5" /> スクリプト
                 </button>
+                <button onClick={() => addNode("comment")}
+                  className="px-2 py-1 text-[11px] bg-yellow-50 hover:bg-yellow-100 rounded-lg text-yellow-700 inline-flex items-center gap-1">
+                  <MessageSquare className="w-3.5 h-3.5" /> コメント
+                </button>
 
                 <div className="w-px h-4 bg-stone-200 mx-0.5" />
 
@@ -526,9 +535,9 @@ function Canvas({
                   className={`px-2 py-1 text-[11px] rounded-lg font-medium ${showPanel ? "bg-orange-600 text-white" : "bg-stone-100 text-stone-700 hover:bg-stone-200"}`}>
                   WS連携
                 </button>
-                <button onClick={() => setShowPersona((v) => !v)}
-                  className={`px-2 py-1 text-[11px] rounded-lg font-medium inline-flex items-center gap-1 ${showPersona ? "bg-orange-600 text-white" : "bg-stone-100 text-stone-700 hover:bg-stone-200"}`}>
-                  <User className="w-3.5 h-3.5" /> ペルソナ
+                <button onClick={() => setShowRightPanel((v) => !v)}
+                  className={`px-2 py-1 text-[11px] rounded-lg font-medium inline-flex items-center gap-1 ${showRightPanel ? "bg-stone-800 text-white" : "bg-stone-100 text-stone-700 hover:bg-stone-200"}`}>
+                  <Sliders className="w-3.5 h-3.5" /> パネル
                 </button>
                 <button onClick={() => setViewMode("outline")}
                   className="px-2 py-1 text-[11px] bg-stone-100 hover:bg-stone-200 rounded-lg text-stone-700 inline-flex items-center gap-1">
@@ -537,7 +546,7 @@ function Canvas({
 
                 <div className="w-px h-4 bg-stone-200 mx-0.5" />
 
-                {/* エッジスタイル（グローバル） */}
+                {/* Global edge style */}
                 <div className="inline-flex rounded-lg border border-stone-200 overflow-hidden text-[10px]">
                   {(["smoothstep", "bezier", "straight"] as EdgePathType[]).map((t) => (
                     <button key={t} onClick={() => setEdgePathType(t)}
@@ -564,25 +573,27 @@ function Canvas({
               </div>
             </Panel>
 
-            {/* ヒント */}
+            {/* Hint */}
             <Panel position="bottom-center">
               <div className="text-[10px] text-stone-400 bg-white/80 px-3 py-1 rounded-full border border-stone-200 shadow-sm">
-                右端→左端でLR接続 / エッジラベルをダブルクリックで編集・クリックでスタイル変更 / ⌘↩ で子ノード追加 / ⌘K コマンド
+                右端→左端でLR接続 / エッジラベルをダブルクリックで編集 / ⌘↩ で子ノード追加 / ⌘K コマンド / ダブルクリックでテキスト編集
               </div>
             </Panel>
           </ReactFlow>
         )}
       </div>
 
-      {showPanel    && <ScriptItemPanel onAdd={handleScriptItemAdd} onClose={() => setShowPanel(false)} />}
-      {showPersona  && (
-        <PersonaPanel
+      {showPanel      && <ScriptItemPanel onAdd={handleScriptItemAdd} onClose={() => setShowPanel(false)} />}
+      {showRightPanel && (
+        <RightPanel
           mapId={mapId}
-          initialData={initialPersonaData}
-          onClose={() => setShowPersona(false)}
+          initialPersonaData={initialPersonaData}
+          selectedNode={selectedNode}
+          onNodeStyleUpdate={handleNodeStyleUpdate}
+          onClose={() => setShowRightPanel(false)}
         />
       )}
-      {showCmd      && <CommandPalette commands={commands} onClose={() => setShowCmd(false)} />}
+      {showCmd        && <CommandPalette commands={commands} onClose={() => setShowCmd(false)} />}
       <ShortcutHelp />
     </div>
   );

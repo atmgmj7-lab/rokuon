@@ -4,9 +4,6 @@ import { useState } from "react";
 import NodeVoiceNote from "./NodeVoiceNote";
 import { ChevronDown, ChevronRight, Type } from "lucide-react";
 
-const PALETTE    = ["#78716C","#C2410C","#2563EB","#16A34A","#9333EA","#D97706","#BE185D","#0E7490","#374151","#B45309"];
-const BG_COLORS  = ["#FFFFFF","#F7F6F4","#FFF7ED","#EFF6FF","#F0FDF4","#FAF5FF","#FEFCE8","#FFF1F2","#F0F9FF","#ECFDF5"];
-
 interface ContentData { body: string; }
 
 function parseContent(raw: string | null | undefined): ContentData {
@@ -24,15 +21,14 @@ export interface TextNodeData {
   color?: string;
   bgColor?: string;
   borderWidth?: number;
+  fontSize?: number;
+  fontColor?: string;
   audio_url?: string | null;
   r2_key?: string | null;
-  onRecordingSaved?:    (id: string, audioUrl: string, r2Key: string) => void;
-  onAudioDeleted?:      (id: string) => void;
-  onLabelChange?:       (id: string, label: string) => void;
-  onContentChange?:     (id: string, content: string) => void;
-  onColorChange?:       (id: string, color: string)  => void;
-  onBgColorChange?:     (id: string, color: string)  => void;
-  onBorderWidthChange?: (id: string, width: number)  => void;
+  onRecordingSaved?: (id: string, audioUrl: string, r2Key: string) => void;
+  onAudioDeleted?:   (id: string) => void;
+  onLabelChange?:    (id: string, label: string) => void;
+  onContentChange?:  (id: string, content: string) => void;
 }
 
 export default function TextNode({ id, data, selected }: NodeProps<TextNodeData>) {
@@ -46,6 +42,8 @@ export default function TextNode({ id, data, selected }: NodeProps<TextNodeData>
   const color       = data.color       ?? "#78716C";
   const bgColor     = data.bgColor     ?? "#FFFFFF";
   const borderWidth = data.borderWidth ?? 1;
+  const fontSize    = data.fontSize    ?? 12;
+  const fontColor   = data.fontColor   ?? "#374151";
 
   const commitTitle = () => {
     setEditTitle(false);
@@ -96,12 +94,11 @@ export default function TextNode({ id, data, selected }: NodeProps<TextNodeData>
             onBlur={commitTitle}
             onKeyDown={(e) => { if (e.key === "Enter") commitTitle(); if (e.key === "Escape") setEditTitle(false); }}
             onMouseDown={(e) => e.stopPropagation()}
-            className="nodrag flex-1 bg-white/20 rounded px-1.5 py-0.5 text-[12px] text-white font-semibold outline-none placeholder-white/60 w-full"
+            className="nodrag flex-1 bg-white/20 rounded px-1.5 py-0.5 text-[12px] text-white font-semibold outline-none w-full"
           />
         ) : (
           <span
-            className="nodrag flex-1 text-white font-semibold text-[12px] leading-tight truncate cursor-text select-none"
-            onClick={() => { if (selected) setEditTitle(true); }}
+            className="nodrag flex-1 text-white font-semibold text-[12px] leading-tight truncate select-none"
             onDoubleClick={() => setEditTitle(true)}
           >{title}</span>
         )}
@@ -123,20 +120,17 @@ export default function TextNode({ id, data, selected }: NodeProps<TextNodeData>
                 onChange={(e) => setBody(e.target.value)}
                 onBlur={() => commitBody()}
                 onMouseDown={(e) => e.stopPropagation()}
-                style={{ flex: 1, minHeight: 48, resize: "none", background: "transparent" }}
-                className="nodrag w-full text-[12px] text-stone-700 outline-none leading-relaxed"
+                style={{ flex: 1, minHeight: 48, resize: "none", background: "transparent", fontSize, color: fontColor }}
+                className="nodrag w-full outline-none leading-relaxed"
               />
             ) : (
               <p
-                className="nodrag text-[12px] text-stone-700 leading-relaxed whitespace-pre-wrap"
-                style={{ flex: 1, cursor: selected ? "text" : "default", minHeight: 32 }}
-                onClick={() => { if (selected) setEditBody(true); }}
+                className="nodrag leading-relaxed whitespace-pre-wrap"
+                style={{ flex: 1, cursor: "text", minHeight: 32, fontSize, color: fontColor }}
                 onDoubleClick={() => setEditBody(true)}
               >
                 {body || (
-                  <span className="text-stone-300 italic">
-                    {selected ? "クリックして入力…" : "ダブルクリックで選択"}
-                  </span>
+                  <span className="text-stone-300 italic text-[11px]">ダブルクリックで入力…</span>
                 )}
               </p>
             )}
@@ -152,40 +146,6 @@ export default function TextNode({ id, data, selected }: NodeProps<TextNodeData>
               onDeleted={(nid) => data.onAudioDeleted?.(nid)}
             />
           </div>
-
-          {/* Style controls — INSIDE node to prevent deselection on click */}
-          {selected && (
-            <div
-              className="px-3 pb-2 flex flex-wrap gap-1 items-center border-t border-black/5"
-              onMouseDown={(e) => e.stopPropagation()}
-            >
-              <span className="text-[8px] text-stone-400 font-medium shrink-0">枠色</span>
-              {PALETTE.map((c) => (
-                <button key={c}
-                  onMouseDown={(e) => { e.stopPropagation(); data.onColorChange?.(id, c); }}
-                  style={{ backgroundColor: c, border: color === c ? "2px solid #374151" : "2px solid transparent" }}
-                  className="w-4 h-4 rounded-full hover:scale-110 transition-transform"
-                />
-              ))}
-              <span className="text-[8px] text-stone-400 font-medium ml-1 shrink-0">背景</span>
-              {BG_COLORS.map((c) => (
-                <button key={c}
-                  onMouseDown={(e) => { e.stopPropagation(); data.onBgColorChange?.(id, c); }}
-                  style={{ backgroundColor: c, border: bgColor === c ? "2px solid #374151" : "1px solid #D6D3D1" }}
-                  className="w-4 h-4 rounded hover:scale-110 transition-transform"
-                />
-              ))}
-              <span className="text-[8px] text-stone-400 font-medium ml-1 shrink-0">枠幅</span>
-              {([1, 2, 3] as const).map((w) => (
-                <button key={w}
-                  onMouseDown={(e) => { e.stopPropagation(); data.onBorderWidthChange?.(id, w); }}
-                  className={`text-[8px] px-1.5 rounded leading-tight ${borderWidth === w ? "bg-stone-700 text-white" : "bg-stone-100 text-stone-500"}`}
-                >
-                  {w === 1 ? "細" : w === 2 ? "中" : "太"}
-                </button>
-              ))}
-            </div>
-          )}
         </>
       )}
     </div>
