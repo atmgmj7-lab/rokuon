@@ -107,10 +107,11 @@ export default function ScriptItemNode({ id, data, selected }: NodeProps<ScriptI
           >{label}</span>
         )}
         <button
-          onMouseDown={(e) => { e.stopPropagation(); setCollapsed((v) => !v); }}
-          className="text-white/70 hover:text-white shrink-0"
+          onClick={(e) => { e.stopPropagation(); setCollapsed((v) => !v); }}
+          onMouseDown={(e) => e.stopPropagation()}
+          className="text-white/70 hover:text-white shrink-0 p-1 -mr-1 rounded hover:bg-white/10"
         >
-          {collapsed ? <ChevronRight className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
         </button>
       </div>
 

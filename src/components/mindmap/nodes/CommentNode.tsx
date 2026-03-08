@@ -1,5 +1,5 @@
 "use client";
-import { Handle, Position, NodeProps, NodeResizer } from "reactflow";
+import { NodeProps, NodeResizer } from "reactflow";
 import { useState } from "react";
 import NodeVoiceNote from "./NodeVoiceNote";
 
@@ -45,9 +45,6 @@ export default function CommentNode({ id, data, selected }: NodeProps<CommentNod
         lineStyle={{ borderColor: color }}
         handleStyle={{ backgroundColor: color, width: 8, height: 8, borderRadius: 2 }}
       />
-      <Handle type="target" position={Position.Left}  id="left"  style={{ background: color, width: 10, height: 10, border: "2px solid white" }} />
-      <Handle type="source" position={Position.Right} id="right" style={{ background: color, width: 10, height: 10, border: "2px solid white" }} />
-
       {/* Main content */}
       <div
         style={{

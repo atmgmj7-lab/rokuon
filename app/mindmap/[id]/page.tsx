@@ -81,10 +81,18 @@ export default async function MindMapEditorPage({ params }: Props) {
             {mapRow.title as string}
           </h1>
         </div>
+        <Link
+          href="/workspace"
+          className="px-3 py-1.5 bg-white border border-stone-200 text-stone-600 rounded-lg text-xs font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
+        >
+          ワークスペース →
+        </Link>
         <div className="flex items-center gap-2 text-[11px] text-stone-400">
           <span>Delete キーでノード/エッジ削除</span>
           <span>•</span>
           <span>⌘↩ で子ノード追加</span>
+          <span>•</span>
+          <span>ダブルクリックでテキスト編集</span>
         </div>
       </header>
 

@@ -366,12 +366,20 @@ export default function WorkspacePage() {
             </div>
           )}
           </div>
-          <Link
-            href="/"
-            className="shrink-0 px-4 py-2 bg-white border border-stone-200 text-stone-600 rounded-lg text-sm font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
-          >
-            ← ホーム
-          </Link>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link
+              href="/mindmap"
+              className="px-4 py-2 bg-white border border-stone-200 text-stone-600 rounded-lg text-sm font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
+            >
+              マインドマップ
+            </Link>
+            <Link
+              href="/"
+              className="px-4 py-2 bg-white border border-stone-200 text-stone-600 rounded-lg text-sm font-medium hover:bg-stone-50 hover:text-stone-900 transition-colors"
+            >
+              ← ホーム
+            </Link>
+          </div>
         </div>
       </div>
 

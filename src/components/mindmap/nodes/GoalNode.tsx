@@ -2,7 +2,7 @@
 import { Handle, Position, NodeProps, NodeResizer } from "reactflow";
 import { useState } from "react";
 import NodeVoiceNote from "./NodeVoiceNote";
-import { ChevronDown, ChevronRight, Type } from "lucide-react";
+import { ChevronDown, ChevronRight, Target } from "lucide-react";
 
 interface ContentData { body: string; }
 
@@ -15,7 +15,7 @@ function parseContent(raw: string | null | undefined): ContentData {
   return { body: raw };
 }
 
-export interface TextNodeData {
+export interface GoalNodeData {
   label: string;
   content?: string;
   color?: string;
@@ -31,7 +31,7 @@ export interface TextNodeData {
   onContentChange?:  (id: string, content: string) => void;
 }
 
-export default function TextNode({ id, data, selected }: NodeProps<TextNodeData>) {
+export default function GoalNode({ id, data, selected }: NodeProps<GoalNodeData>) {
   const parsed = parseContent(data.content);
   const [collapsed, setCollapsed] = useState(false);
   const [editTitle, setEditTitle] = useState(false);
@@ -39,15 +39,15 @@ export default function TextNode({ id, data, selected }: NodeProps<TextNodeData>
   const [title,     setTitle]     = useState(data.label);
   const [body,      setBody]      = useState(parsed.body);
 
-  const color       = data.color       ?? "#78716C";
-  const bgColor     = data.bgColor     ?? "#FFFFFF";
-  const borderWidth = data.borderWidth ?? 1;
+  const color       = data.color       ?? "#0EA5E9";
+  const bgColor     = data.bgColor     ?? "#F0F9FF";
+  const borderWidth = data.borderWidth ?? 2;
   const fontSize    = data.fontSize    ?? 12;
-  const fontColor   = data.fontColor   ?? "#374151";
+  const fontColor   = data.fontColor   ?? "#0C4A6E";
 
   const commitTitle = () => {
     setEditTitle(false);
-    const next = title.trim() || "無題";
+    const next = title.trim() || "ゴール";
     setTitle(next);
     data.onLabelChange?.(id, next);
   };
@@ -63,11 +63,11 @@ export default function TextNode({ id, data, selected }: NodeProps<TextNodeData>
         width: "100%", height: "100%",
         display: "flex", flexDirection: "column",
         border: `${borderWidth}px solid ${color}`,
-        borderRadius: 10, overflow: "hidden",
+        borderRadius: 12, overflow: "hidden",
         backgroundColor: bgColor,
         boxShadow: selected
-          ? "0 4px 16px rgba(0,0,0,0.14)"
-          : "0 1px 5px rgba(0,0,0,0.07)",
+          ? `0 0 0 3px ${color}40, 0 4px 16px rgba(0,0,0,0.14)`
+          : `0 0 0 1px ${color}20, 0 1px 5px rgba(0,0,0,0.07)`,
         minWidth: 180, minHeight: 60,
         transition: "box-shadow 0.15s",
       }}
@@ -86,7 +86,10 @@ export default function TextNode({ id, data, selected }: NodeProps<TextNodeData>
         style={{ backgroundColor: color, flexShrink: 0 }}
         className="flex items-center gap-1.5 px-3 py-2"
       >
-        <Type className="w-3.5 h-3.5 text-white/80 shrink-0" />
+        <Target className="w-3.5 h-3.5 text-white shrink-0" />
+        <span className="text-[8px] font-bold text-white/70 bg-white/20 px-1.5 py-0.5 rounded shrink-0 tracking-wider">
+          GOAL
+        </span>
         {editTitle ? (
           <input
             autoFocus value={title}
@@ -113,7 +116,6 @@ export default function TextNode({ id, data, selected }: NodeProps<TextNodeData>
 
       {!collapsed && (
         <>
-          {/* Body */}
           <div style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column" }} className="px-3 pt-2 pb-1">
             {editBody ? (
               <textarea
@@ -131,13 +133,12 @@ export default function TextNode({ id, data, selected }: NodeProps<TextNodeData>
                 onDoubleClick={() => setEditBody(true)}
               >
                 {body || (
-                  <span className="text-stone-300 italic text-[11px]">ダブルクリックで入力…</span>
+                  <span className="text-stone-300 italic text-[11px]">ダブルクリックで内容を入力…</span>
                 )}
               </p>
             )}
           </div>
 
-          {/* Audio */}
           <div className="px-3 pb-2">
             <NodeVoiceNote
               nodeId={id}
