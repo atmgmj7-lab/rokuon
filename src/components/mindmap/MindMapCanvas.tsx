@@ -48,10 +48,11 @@ function dbNodeToRF(n: DbNode): Node {
     bgColor: n.bg_color ?? "#FFFFFF", borderWidth: n.border_width ?? (n.node_type === "script_item" ? 2 : 1),
   };
 
+  const sizeStyle = n.height > 100 ? { width: n.width, height: n.height } : { width: n.width };
   if (n.node_type === "script_item") {
-    return { ...base, type: "scriptItem", data: { ...baseData, content: n.content, color: n.color, script_item_id: n.script_item_id }, style: { width: n.width } };
+    return { ...base, type: "scriptItem", data: { ...baseData, content: n.content, color: n.color, script_item_id: n.script_item_id }, style: sizeStyle };
   }
-  return { ...base, type: "text", data: { ...baseData, content: n.content ?? label, color: n.color || NODE_COLORS.text }, style: { width: n.width } };
+  return { ...base, type: "text", data: { ...baseData, content: n.content ?? label, color: n.color || NODE_COLORS.text }, style: sizeStyle };
 }
 
 function dbEdgeToRF(e: DbEdge): Edge {

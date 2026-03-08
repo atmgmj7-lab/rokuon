@@ -1,25 +1,8 @@
 "use client";
-import { useEffect, useState, useRef } from "react";
-import { X, User } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { X, User, Plus, Trash2 } from "lucide-react";
 
-export interface PersonaData {
-  industry:     string;
-  role:         string;
-  company_size: string;
-  network:      string;
-  device:       string;
-  pain:         string;
-  personality:  string;
-  barrier:      string;
-  goal:         string;
-}
-
-const EMPTY: PersonaData = {
-  industry: "", role: "", company_size: "",
-  network: "", device: "",
-  pain: "", personality: "", barrier: "",
-  goal: "",
-};
+interface KVEntry { key: string; value: string; }
 
 interface Props {
   mapId: string;
@@ -27,60 +10,59 @@ interface Props {
   onClose: () => void;
 }
 
+function parseEntries(raw: string | null): KVEntry[] {
+  if (!raw) return [];
+  try {
+    const p = JSON.parse(raw) as unknown;
+    if (Array.isArray(p)) return (p as KVEntry[]).filter((e) => typeof e.key === "string");
+  } catch {}
+  // legacy fixed-field format → convert to KV
+  try {
+    const obj = JSON.parse(raw) as Record<string, string>;
+    return Object.entries(obj)
+      .filter(([, v]) => v)
+      .map(([k, v]) => ({ key: k, value: v }));
+  } catch {}
+  return [];
+}
+
 export default function PersonaPanel({ mapId, initialData, onClose }: Props) {
-  const [data, setData] = useState<PersonaData>(() => {
-    if (!initialData) return EMPTY;
-    try { return { ...EMPTY, ...(JSON.parse(initialData) as Partial<PersonaData>) }; }
-    catch { return EMPTY; }
-  });
+  const [entries, setEntries] = useState<KVEntry[]>(() => parseEntries(initialData));
   const [saving, setSaving] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const update = (field: keyof PersonaData, value: string) => {
-    setData((prev) => {
-      const next = { ...prev, [field]: value };
-      // debounced save
-      if (timerRef.current) clearTimeout(timerRef.current);
-      timerRef.current = setTimeout(() => {
-        setSaving(true);
-        fetch(`/api/mind-maps/${mapId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ persona_data: JSON.stringify(next) }),
-        })
-          .catch(() => {})
-          .finally(() => setSaving(false));
-      }, 1200);
-      return next;
-    });
+  const persist = (next: KVEntry[]) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      setSaving(true);
+      fetch(`/api/mind-maps/${mapId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ persona_data: JSON.stringify(next) }),
+      })
+        .catch(() => {})
+        .finally(() => setSaving(false));
+    }, 1200);
   };
 
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
 
-  const Field = ({
-    label, field, rows = 1, placeholder,
-  }: { label: string; field: keyof PersonaData; rows?: number; placeholder?: string }) => (
-    <div>
-      <label className="block text-[10px] font-bold text-stone-500 mb-1 uppercase tracking-wide">{label}</label>
-      {rows > 1 ? (
-        <textarea
-          value={data[field]}
-          onChange={(e) => update(field, e.target.value)}
-          rows={rows}
-          placeholder={placeholder}
-          className="w-full text-[12px] text-stone-700 border border-stone-200 rounded-lg px-2.5 py-1.5 outline-none focus:border-orange-400 resize-none bg-white leading-relaxed"
-        />
-      ) : (
-        <input
-          type="text"
-          value={data[field]}
-          onChange={(e) => update(field, e.target.value)}
-          placeholder={placeholder}
-          className="w-full text-[12px] text-stone-700 border border-stone-200 rounded-lg px-2.5 py-1.5 outline-none focus:border-orange-400 bg-white"
-        />
-      )}
-    </div>
-  );
+  const update = (index: number, field: "key" | "value", value: string) => {
+    const next = entries.map((e, i) => (i === index ? { ...e, [field]: value } : e));
+    setEntries(next);
+    persist(next);
+  };
+
+  const addRow = () => {
+    const next = [...entries, { key: "", value: "" }];
+    setEntries(next);
+  };
+
+  const removeRow = (index: number) => {
+    const next = entries.filter((_, i) => i !== index);
+    setEntries(next);
+    persist(next);
+  };
 
   return (
     <div className="w-72 h-full bg-white border-l border-stone-200 shadow-lg flex flex-col shrink-0">
@@ -98,45 +80,53 @@ export default function PersonaPanel({ mapId, initialData, onClose }: Props) {
         </div>
       </div>
 
-      {/* Fields */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
-        {/* 基本属性 */}
-        <div>
-          <p className="text-[10px] font-bold text-orange-600 uppercase tracking-widest mb-2">基本属性</p>
-          <div className="space-y-2">
-            <Field label="業種" field="industry" placeholder="例：製造業、IT、不動産" />
-            <Field label="役職" field="role" placeholder="例：経営者、営業部長" />
-            <Field label="会社規模" field="company_size" placeholder="例：従業員50〜100名" />
+      {/* KV list */}
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
+        {entries.length === 0 && (
+          <p className="text-[11px] text-stone-400 italic text-center mt-6">
+            「＋ 項目を追加」で自由に項目を作れます
+          </p>
+        )}
+        {entries.map((entry, i) => (
+          <div key={i} className="flex items-start gap-1.5 group">
+            <div className="flex flex-col gap-1 flex-1 min-w-0">
+              <input
+                type="text"
+                value={entry.key}
+                onChange={(e) => update(i, "key", e.target.value)}
+                placeholder="項目名"
+                className="w-full text-[11px] font-semibold text-stone-600 border border-stone-200 rounded-md px-2 py-1 outline-none focus:border-orange-400 bg-stone-50"
+              />
+              <textarea
+                value={entry.value}
+                onChange={(e) => update(i, "value", e.target.value)}
+                placeholder="内容"
+                rows={2}
+                className="w-full text-[12px] text-stone-700 border border-stone-200 rounded-md px-2 py-1 outline-none focus:border-orange-400 resize-none bg-white leading-relaxed"
+              />
+            </div>
+            <button
+              onClick={() => removeRow(i)}
+              className="mt-1 text-stone-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
           </div>
-        </div>
-
-        {/* インフラ */}
-        <div>
-          <p className="text-[10px] font-bold text-orange-600 uppercase tracking-widest mb-2">インフラ状況</p>
-          <div className="space-y-2">
-            <Field label="ネット状況" field="network" placeholder="例：光回線、在宅ワーク多め" />
-            <Field label="使用デバイス" field="device" placeholder="例：MacBook, iPhone" />
-          </div>
-        </div>
-
-        {/* 心理属性 */}
-        <div>
-          <p className="text-[10px] font-bold text-orange-600 uppercase tracking-widest mb-2">心理属性</p>
-          <div className="space-y-2">
-            <Field label="主要な悩み" field="pain" rows={2} placeholder="例：採用コストが高い、生産性が低い" />
-            <Field label="性格・トーン" field="personality" placeholder="例：論理的、慎重派" />
-            <Field label="導入の壁" field="barrier" rows={2} placeholder="例：コスト懸念、社内稟議が必要" />
-          </div>
-        </div>
-
-        {/* ゴール */}
-        <div>
-          <p className="text-[10px] font-bold text-orange-600 uppercase tracking-widest mb-2">このマップのゴール</p>
-          <Field label="目標" field="goal" rows={2} placeholder="例：アポ取得、キーマン特定、ニーズ確認" />
-        </div>
+        ))}
       </div>
 
-      {/* Footer hint */}
+      {/* Add row */}
+      <div className="px-4 pb-3">
+        <button
+          onClick={addRow}
+          className="w-full flex items-center justify-center gap-1.5 py-2 rounded-lg border border-dashed border-stone-300 text-[11px] text-stone-500 hover:border-orange-400 hover:text-orange-500 transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          項目を追加
+        </button>
+      </div>
+
+      {/* Footer */}
       <div className="px-4 py-2 border-t border-stone-100">
         <p className="text-[10px] text-stone-400">入力内容は自動で保存されます</p>
       </div>
