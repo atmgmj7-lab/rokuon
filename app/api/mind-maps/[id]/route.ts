@@ -31,15 +31,17 @@ export async function GET(request: NextRequest, { params }: Params) {
 
     const [mapRes, nodesRes, edgesRes] = await Promise.all([
       db.execute({
-        sql: "SELECT id, title, description, created_at, updated_at FROM mind_maps WHERE id = ?",
+        sql: "SELECT id, title, description, persona_data, created_at, updated_at FROM mind_maps WHERE id = ?",
         args: [id],
       }),
       db.execute({
-        sql: "SELECT id, node_type, script_item_id, title, label, content, audio_url, r2_key, parent_id, color, pos_x, pos_y, width, height FROM map_nodes WHERE map_id = ? ORDER BY created_at ASC",
+        sql: `SELECT id, node_type, script_item_id, title, label, content, audio_url, r2_key,
+               parent_id, color, bg_color, border_width, pos_x, pos_y, width, height
+               FROM map_nodes WHERE map_id = ? ORDER BY created_at ASC`,
         args: [id],
       }),
       db.execute({
-        sql: "SELECT id, source_node_id, target_node_id, label FROM map_edges WHERE map_id = ?",
+        sql: "SELECT id, source_node_id, target_node_id, label, edge_color, edge_width FROM map_edges WHERE map_id = ?",
         args: [id],
       }),
     ]);
@@ -56,6 +58,8 @@ export async function GET(request: NextRequest, { params }: Params) {
       r2_key:         r.r2_key as string | null,
       parent_id:      (r.parent_id as string | null) ?? null,
       color:          r.color as string,
+      bg_color:       (r.bg_color as string | null) ?? "#FFFFFF",
+      border_width:   (r.border_width as number | null) ?? 1,
       pos_x:          r.pos_x as number,
       pos_y:          r.pos_y as number,
       width:          r.width as number,
@@ -66,17 +70,20 @@ export async function GET(request: NextRequest, { params }: Params) {
       source_node_id: r.source_node_id as string,
       target_node_id: r.target_node_id as string,
       label:          r.label as string | null,
+      edge_color:     r.edge_color as string | null,
+      edge_width:     r.edge_width as number | null,
     }));
 
     return NextResponse.json({
       success: true,
       data: {
         map: {
-          id:          map.id as string,
-          title:       map.title as string,
-          description: map.description as string | null,
-          created_at:  map.created_at as number,
-          updated_at:  map.updated_at as number,
+          id:           map.id as string,
+          title:        map.title as string,
+          description:  map.description as string | null,
+          persona_data: map.persona_data as string | null,
+          created_at:   map.created_at as number,
+          updated_at:   map.updated_at as number,
         },
         nodes,
         edges,
@@ -104,12 +111,21 @@ export async function PUT(request: NextRequest, { params }: Params) {
       return NextResponse.json({ success: false, error: check.error }, { status: check.status });
     }
 
-    const body = await request.json() as { title?: string; description?: string };
+    const body = await request.json() as { title?: string; description?: string; persona_data?: string };
     const now  = Date.now();
 
+    const setClauses: string[] = ["updated_at = ?"];
+    const args: (string | number | null)[] = [now];
+
+    if (body.title        !== undefined) { setClauses.unshift("title = ?");        args.unshift(body.title); }
+    if (body.description  !== undefined) { setClauses.unshift("description = ?");  args.unshift(body.description); }
+    if (body.persona_data !== undefined) { setClauses.unshift("persona_data = ?"); args.unshift(body.persona_data); }
+
+    args.push(id);
+
     await db.execute({
-      sql: "UPDATE mind_maps SET title = COALESCE(?, title), description = COALESCE(?, description), updated_at = ? WHERE id = ?",
-      args: [body.title ?? null, body.description ?? null, now, id],
+      sql: `UPDATE mind_maps SET ${setClauses.join(", ")} WHERE id = ?`,
+      args,
     });
 
     return NextResponse.json({ success: true });

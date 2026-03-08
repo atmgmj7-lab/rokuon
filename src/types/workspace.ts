@@ -35,6 +35,8 @@ export interface ScriptItem {
   item_type: string; // 'main_scenario' or 'component'
   target_situation_id?: string; // どの状況タブで表示するか
   trigger_check_item_id?: string; // どのチェック項目がONになったら表示するか
+  audio_url?: string | null;
+  r2_key?: string | null;
   sort_order: number;
   created_at: number;
   updated_at: number;

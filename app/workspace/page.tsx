@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import {
   getAllItems,
@@ -552,6 +552,141 @@ function MenuButton({
 }
 
 // トークエディター
+function WorkspaceVoiceNote({ itemId, initialAudioUrl, initialR2Key }: { itemId: string; initialAudioUrl: string | null; initialR2Key: string | null }) {
+  const [recording,  setRecording]  = useState(false);
+  const [uploading,  setUploading]  = useState(false);
+  const [audioUrl,   setAudioUrl]   = useState<string | null>(initialAudioUrl);
+  const [r2Key,      setR2Key]      = useState<string | null>(initialR2Key);
+  const [deleting,   setDeleting]   = useState(false);
+  const [error,      setError]      = useState<string | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef        = useRef<Blob[]>([]);
+
+  const getSupportedMimeType = () => {
+    for (const t of ["audio/webm", "audio/mp4", "audio/ogg"]) {
+      if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported(t)) return t;
+    }
+    return "audio/webm";
+  };
+
+  const startRecording = async () => {
+    setError(null);
+    try {
+      const stream   = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = getSupportedMimeType();
+      const mr       = new MediaRecorder(stream, { mimeType });
+      chunksRef.current = [];
+      mr.ondataavailable = (e: BlobEvent) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      mr.onstop = () => handleUpload(stream, mimeType);
+      mr.start();
+      mediaRecorderRef.current = mr;
+      setRecording(true);
+    } catch {
+      setError("マイクの許可が必要です");
+    }
+  };
+
+  const stopRecording = () => {
+    mediaRecorderRef.current?.stop();
+    setRecording(false);
+  };
+
+  const handleUpload = async (stream: MediaStream, mimeType: string) => {
+    stream.getTracks().forEach((t) => t.stop());
+    setUploading(true);
+    try {
+      const ext      = mimeType.includes("mp4") ? ".mp4" : mimeType.includes("ogg") ? ".ogg" : ".webm";
+      const blob     = new Blob(chunksRef.current, { type: mimeType });
+      const filename = `ws_${itemId}_${Date.now()}${ext}`;
+      const presRes  = await fetch("/api/mindmap-audio", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename, contentType: mimeType }),
+      });
+      const presJson = await presRes.json() as { putUrl?: string; r2Key?: string; audioUrl?: string; error?: string };
+      if (!presRes.ok || !presJson.putUrl || !presJson.r2Key || !presJson.audioUrl) {
+        throw new Error(presJson.error ?? "URL取得失敗");
+      }
+      const putRes = await fetch(presJson.putUrl, { method: "PUT", headers: { "Content-Type": mimeType }, body: blob });
+      if (!putRes.ok) throw new Error(`アップロード失敗 (${putRes.status})`);
+
+      await fetch(`/api/workspace/items/${itemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ audio_url: presJson.audioUrl, r2_key: presJson.r2Key }),
+      });
+      setAudioUrl(presJson.audioUrl);
+      setR2Key(presJson.r2Key);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "アップロード失敗");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!r2Key) return;
+    setDeleting(true);
+    try {
+      await fetch("/api/mindmap-audio", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ r2Key }),
+      });
+      await fetch(`/api/workspace/items/${itemId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ audio_url: null, r2_key: null }),
+      });
+      setAudioUrl(null);
+      setR2Key(null);
+    } catch {
+      setError("削除に失敗しました");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3">
+      {audioUrl ? (
+        <div className="flex items-center gap-3">
+          <audio controls src={audioUrl} className="flex-1 h-10" />
+          <button
+            onClick={handleDelete}
+            disabled={deleting}
+            className="px-3 py-1.5 bg-white border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors disabled:opacity-50"
+          >
+            {deleting ? "削除中..." : "削除"}
+          </button>
+        </div>
+      ) : (
+        <p className="text-sm text-[#827F7B]">録音なし</p>
+      )}
+      <div>
+        {recording ? (
+          <button
+            onClick={stopRecording}
+            className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white rounded-lg text-sm font-bold animate-pulse"
+          >
+            停止
+          </button>
+        ) : uploading ? (
+          <span className="text-sm text-[#827F7B]">アップロード中...</span>
+        ) : (
+          <button
+            onClick={startRecording}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-stone-200 text-stone-700 rounded-lg text-sm font-medium hover:bg-stone-50 transition-colors"
+          >
+            録音
+          </button>
+        )}
+      </div>
+      {error && <p className="text-sm text-red-500">{error}</p>}
+    </div>
+  );
+}
+
 function TalkEditor({
   activeMenu,
   displayItems,
@@ -731,6 +866,19 @@ function TalkEditor({
                     rows={4}
                     className={`w-full px-4 py-3 border border-stone-200 rounded-lg focus:ring-2 focus:ring-stone-300 focus:border-stone-300 transition-all ${!canEdit ? "bg-stone-50 cursor-default" : ""}`}
                     placeholder="このトークの戦略的意図を入力..."
+                  />
+                </div>
+
+                {/* 音声メモ */}
+                <div className="border-l-4 border-orange-300 pl-4 bg-orange-50/30 p-4 rounded-r-lg">
+                  <label className="block text-sm font-bold text-[#2D2B2A] mb-3">
+                    音声メモ
+                  </label>
+                  <WorkspaceVoiceNote
+                    key={selectedItem.id}
+                    itemId={selectedItem.id}
+                    initialAudioUrl={selectedItem.audio_url ?? null}
+                    initialR2Key={selectedItem.r2_key ?? null}
                   />
                 </div>
               </div>

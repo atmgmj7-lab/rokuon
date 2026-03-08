@@ -17,14 +17,16 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   const { id } = await params;
 
   try {
-    const body = await request.json() as { title?: string; content?: string };
+    const body = await request.json() as { title?: string; content?: string; audio_url?: string | null; r2_key?: string | null };
     const now = Date.now();
 
     const setClauses: string[] = [];
-    const args: (string | number)[] = [];
+    const args: (string | number | null)[] = [];
 
-    if (body.title   !== undefined) { setClauses.push("title = ?");   args.push(body.title); }
-    if (body.content !== undefined) { setClauses.push("content = ?"); args.push(body.content); }
+    if (body.title     !== undefined) { setClauses.push("title = ?");     args.push(body.title); }
+    if (body.content   !== undefined) { setClauses.push("content = ?");   args.push(body.content); }
+    if (body.audio_url !== undefined) { setClauses.push("audio_url = ?"); args.push(body.audio_url); }
+    if (body.r2_key    !== undefined) { setClauses.push("r2_key = ?");    args.push(body.r2_key); }
 
     if (setClauses.length === 0) {
       return NextResponse.json({ success: false, error: "更新フィールドが必要です" }, { status: 400 });

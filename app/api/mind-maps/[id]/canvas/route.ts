@@ -19,6 +19,8 @@ interface NodePayload {
   r2_key?: string | null;
   parent_id?: string | null;
   color?: string;
+  bg_color?: string | null;
+  border_width?: number | null;
   pos_x: number;
   pos_y: number;
   width?: number;
@@ -30,6 +32,8 @@ interface EdgePayload {
   source_node_id: string;
   target_node_id: string;
   label?: string | null;
+  edge_color?: string | null;
+  edge_width?: number | null;
 }
 
 export async function PUT(request: NextRequest, { params }: Params) {
@@ -41,7 +45,6 @@ export async function PUT(request: NextRequest, { params }: Params) {
   const { id: mapId } = await params;
 
   try {
-    // オーナー確認
     const ownerRes = await db.execute({
       sql: "SELECT user_id FROM mind_maps WHERE id = ?",
       args: [mapId],
@@ -55,7 +58,6 @@ export async function PUT(request: NextRequest, { params }: Params) {
     const body = await request.json() as { nodes: NodePayload[]; edges: EdgePayload[] };
     const now  = Date.now();
 
-    // 既存ノード・エッジを削除してから再挿入（シンプルな全件置換）
     const statements: { sql: string; args: (string | number | null)[] }[] = [];
 
     statements.push({ sql: "DELETE FROM map_edges WHERE map_id = ?", args: [mapId] });
@@ -64,14 +66,18 @@ export async function PUT(request: NextRequest, { params }: Params) {
     for (const n of body.nodes) {
       statements.push({
         sql: `INSERT INTO map_nodes
-              (id, map_id, node_type, script_item_id, title, label, content, audio_url, r2_key, parent_id, color, pos_x, pos_y, width, height, created_at, updated_at)
-              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+              (id, map_id, node_type, script_item_id, title, label, content, audio_url, r2_key,
+               parent_id, color, bg_color, border_width, pos_x, pos_y, width, height, created_at, updated_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         args: [
           n.id, mapId, n.node_type, n.script_item_id ?? null,
           n.title ?? n.label,
           n.label, n.content ?? null, n.audio_url ?? null, n.r2_key ?? null,
           n.parent_id ?? null,
-          n.color ?? "#3B82F6", n.pos_x, n.pos_y,
+          n.color ?? "#78716C",
+          n.bg_color ?? "#FFFFFF",
+          n.border_width ?? 1,
+          n.pos_x, n.pos_y,
           n.width ?? 200, n.height ?? 80,
           now, now,
         ],
@@ -80,12 +86,13 @@ export async function PUT(request: NextRequest, { params }: Params) {
 
     for (const e of body.edges) {
       statements.push({
-        sql: "INSERT INTO map_edges (id, map_id, source_node_id, target_node_id, label, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-        args: [e.id, mapId, e.source_node_id, e.target_node_id, e.label ?? null, now],
+        sql: `INSERT INTO map_edges (id, map_id, source_node_id, target_node_id, label, edge_color, edge_width, created_at)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        args: [e.id, mapId, e.source_node_id, e.target_node_id, e.label ?? null,
+               e.edge_color ?? null, e.edge_width ?? null, now],
       });
     }
 
-    // updated_at 更新
     statements.push({
       sql: "UPDATE mind_maps SET updated_at = ? WHERE id = ?",
       args: [now, mapId],
