@@ -2,6 +2,7 @@
 
 import { db } from "@/src/lib/db";
 import bcrypt from "bcryptjs";
+import { requireAdminOrError } from "@/src/actions/auth-actions";
 
 const SALT_ROUNDS = 10;
 
@@ -66,5 +67,86 @@ export async function getUsers(): Promise<UserListItem[]> {
   } catch (error) {
     console.error("❌ ユーザー一覧取得エラー:", error);
     return [];
+  }
+}
+
+export interface UpdateUserParams {
+  userId: string;
+  email?: string;
+  password?: string;
+  name?: string;
+  role?: "admin" | "viewer";
+}
+
+/**
+ * 管理者がユーザー情報（メールアドレス・パスワード・表示名・権限）を更新する
+ */
+export async function updateUser(
+  params: UpdateUserParams
+): Promise<{ success: boolean; error?: string }> {
+  const adminError = await requireAdminOrError();
+  if (adminError) return adminError;
+
+  const { userId, email, password, name, role } = params;
+
+  try {
+    if (!userId) {
+      return { success: false, error: "ユーザーIDを指定してください" };
+    }
+
+    // 既存ユーザー取得
+    const existing = await db.execute({
+      sql: "SELECT id, email, name, password_hash, role FROM users WHERE id = ? LIMIT 1",
+      args: [userId],
+    });
+
+    if (existing.rows.length === 0) {
+      return { success: false, error: "ユーザーが見つかりません" };
+    }
+
+    const row = existing.rows[0];
+    let newEmail = (row.email as string) ?? "";
+    let newName = (row.name as string) ?? null;
+    let newPasswordHash = row.password_hash as string | null;
+    let newRole = (row.role as string) ?? "viewer";
+
+    if (email !== undefined) {
+      const trimmedEmail = email.trim().toLowerCase();
+      if (!trimmedEmail) {
+        return { success: false, error: "メールアドレスを入力してください" };
+      }
+      newEmail = trimmedEmail;
+    }
+
+    if (password !== undefined && password !== "") {
+      if (password.length < 6) {
+        return { success: false, error: "パスワードは6文字以上で入力してください" };
+      }
+      newPasswordHash = await bcrypt.hash(password, SALT_ROUNDS);
+    }
+
+    if (name !== undefined) {
+      newName = name.trim() || null;
+    }
+
+    if (role !== undefined) {
+      newRole = role;
+    }
+
+    const now = Date.now();
+
+    await db.execute({
+      sql: `UPDATE users SET email = ?, name = ?, password_hash = ?, role = ?, updated_at = ? WHERE id = ?`,
+      args: [newEmail, newName, newPasswordHash, newRole, now, userId],
+    });
+
+    return { success: true };
+  } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    if (msg.includes("UNIQUE constraint failed") || msg.includes("unique")) {
+      return { success: false, error: "このメールアドレスは既に登録されています" };
+    }
+    console.error("❌ ユーザー更新エラー:", error);
+    return { success: false, error: msg };
   }
 }

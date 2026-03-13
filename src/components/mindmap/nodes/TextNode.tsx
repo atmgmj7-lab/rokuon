@@ -1,8 +1,11 @@
 "use client";
 import { Handle, Position, NodeProps, NodeResizer } from "reactflow";
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import NodeVoiceNote from "./NodeVoiceNote";
-import { ChevronDown, ChevronRight, Type } from "lucide-react";
+import { Type, X, Maximize2 } from "lucide-react";
+
+const TRUNCATE = 100;
 
 interface ContentData { body: string; }
 
@@ -33,17 +36,20 @@ export interface TextNodeData {
 
 export default function TextNode({ id, data, selected }: NodeProps<TextNodeData>) {
   const parsed = parseContent(data.content);
-  const [collapsed, setCollapsed] = useState(false);
   const [editTitle, setEditTitle] = useState(false);
   const [editBody,  setEditBody]  = useState(false);
   const [title,     setTitle]     = useState(data.label);
   const [body,      setBody]      = useState(parsed.body);
+  const [showPopup, setShowPopup] = useState(false);
 
   const color       = data.color       ?? "#78716C";
   const bgColor     = data.bgColor     ?? "#FFFFFF";
   const borderWidth = data.borderWidth ?? 1;
   const fontSize    = data.fontSize    ?? 12;
   const fontColor   = data.fontColor   ?? "#374151";
+
+  const isTruncated  = body.length > TRUNCATE;
+  const displayBody  = isTruncated ? body.slice(0, TRUNCATE) + "…" : body;
 
   const commitTitle = () => {
     setEditTitle(false);
@@ -58,97 +64,123 @@ export default function TextNode({ id, data, selected }: NodeProps<TextNodeData>
   };
 
   return (
-    <div
-      style={{
-        width: "100%", height: "100%",
-        display: "flex", flexDirection: "column",
-        border: `${borderWidth}px solid ${color}`,
-        borderRadius: 10, overflow: "hidden",
-        backgroundColor: bgColor,
-        boxShadow: selected
-          ? "0 4px 16px rgba(0,0,0,0.14)"
-          : "0 1px 5px rgba(0,0,0,0.07)",
-        minWidth: 180, minHeight: 60,
-        transition: "box-shadow 0.15s",
-      }}
-    >
-      <NodeResizer
-        minWidth={160} minHeight={56}
-        isVisible={selected}
-        lineStyle={{ borderColor: color }}
-        handleStyle={{ backgroundColor: color, width: 8, height: 8, borderRadius: 2 }}
-      />
-      <Handle type="target" position={Position.Left}  id="left"  style={{ background: color, width: 10, height: 10, border: "2px solid white" }} />
-      <Handle type="source" position={Position.Right} id="right" style={{ background: color, width: 10, height: 10, border: "2px solid white" }} />
-
-      {/* Header */}
+    <>
       <div
-        style={{ backgroundColor: color, flexShrink: 0 }}
-        className="flex items-center gap-1.5 px-3 py-2"
+        style={{
+          width: "100%", height: "100%",
+          display: "flex", flexDirection: "column",
+          border: `${borderWidth}px solid ${color}`,
+          borderRadius: 10, overflow: "hidden",
+          backgroundColor: bgColor,
+          boxShadow: selected ? "0 4px 16px rgba(0,0,0,0.14)" : "0 1px 5px rgba(0,0,0,0.07)",
+          minWidth: 180, minHeight: 60,
+          transition: "box-shadow 0.15s",
+        }}
       >
-        <Type className="w-3.5 h-3.5 text-white/80 shrink-0" />
-        {editTitle ? (
-          <input
-            autoFocus value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            onBlur={commitTitle}
-            onKeyDown={(e) => { if (e.key === "Enter") commitTitle(); if (e.key === "Escape") setEditTitle(false); }}
-            onMouseDown={(e) => e.stopPropagation()}
-            className="nodrag flex-1 bg-white/20 rounded px-1.5 py-0.5 text-[12px] text-white font-semibold outline-none w-full"
-          />
-        ) : (
-          <span
-            className="nodrag flex-1 text-white font-semibold text-[12px] leading-tight truncate select-none"
-            onDoubleClick={() => setEditTitle(true)}
-          >{title}</span>
-        )}
-        <button
-          onClick={(e) => { e.stopPropagation(); setCollapsed((v) => !v); }}
-          onMouseDown={(e) => e.stopPropagation()}
-          className="text-white/70 hover:text-white shrink-0 p-1 -mr-1 rounded hover:bg-white/10"
-        >
-          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-        </button>
-      </div>
+        <NodeResizer
+          minWidth={160} minHeight={56}
+          isVisible={selected}
+          lineStyle={{ borderColor: color }}
+          handleStyle={{ backgroundColor: color, width: 8, height: 8, borderRadius: 2 }}
+        />
+        <Handle type="target" position={Position.Left}  id="left"  style={{ background: color, width: 10, height: 10, border: "2px solid white" }} />
+        <Handle type="source" position={Position.Right} id="right" style={{ background: color, width: 10, height: 10, border: "2px solid white" }} />
 
-      {!collapsed && (
-        <>
-          {/* Body */}
-          <div style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column" }} className="px-3 pt-2 pb-1">
-            {editBody ? (
-              <textarea
-                autoFocus value={body}
-                onChange={(e) => setBody(e.target.value)}
-                onBlur={() => commitBody()}
-                onMouseDown={(e) => e.stopPropagation()}
-                style={{ flex: 1, minHeight: 48, resize: "none", background: "transparent", fontSize, color: fontColor }}
-                className="nodrag w-full outline-none leading-relaxed"
-              />
-            ) : (
+        {/* Header */}
+        <div style={{ backgroundColor: color, flexShrink: 0 }} className="flex items-center gap-1.5 px-3 py-2">
+          <Type className="w-3.5 h-3.5 text-white/80 shrink-0" />
+          {editTitle ? (
+            <input
+              autoFocus value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              onBlur={commitTitle}
+              onKeyDown={(e) => { if (e.key === "Enter") commitTitle(); if (e.key === "Escape") setEditTitle(false); }}
+              onMouseDown={(e) => e.stopPropagation()}
+              className="nodrag flex-1 bg-white/20 rounded px-1.5 py-0.5 text-[12px] text-white font-semibold outline-none w-full"
+            />
+          ) : (
+            <span
+              className="nodrag flex-1 text-white font-semibold text-[12px] leading-tight truncate select-none"
+              onDoubleClick={() => setEditTitle(true)}
+            >{title}</span>
+          )}
+        </div>
+
+        {/* Body */}
+        <div style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column" }} className="px-3 pt-2 pb-1">
+          {editBody ? (
+            <textarea
+              autoFocus value={body}
+              onChange={(e) => setBody(e.target.value)}
+              onBlur={() => commitBody()}
+              onMouseDown={(e) => e.stopPropagation()}
+              style={{ flex: 1, minHeight: 48, resize: "none", background: "transparent", fontSize, color: fontColor }}
+              className="nodrag w-full outline-none leading-relaxed"
+            />
+          ) : (
+            <div style={{ flex: 1 }}>
               <p
                 className="nodrag leading-relaxed whitespace-pre-wrap"
-                style={{ flex: 1, cursor: "text", minHeight: 32, fontSize, color: fontColor }}
+                style={{ fontSize, color: fontColor, cursor: "text" }}
                 onDoubleClick={() => setEditBody(true)}
               >
-                {body || (
+                {displayBody || (
                   <span className="text-stone-300 italic text-[11px]">ダブルクリックで入力…</span>
                 )}
               </p>
-            )}
-          </div>
+              {isTruncated && (
+                <button
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onClick={(e) => { e.stopPropagation(); setShowPopup(true); }}
+                  className="nodrag mt-1 inline-flex items-center gap-0.5 text-[10px] text-stone-400 hover:text-orange-500 transition-colors"
+                >
+                  <Maximize2 className="w-2.5 h-2.5" /> 全文を見る
+                </button>
+              )}
+            </div>
+          )}
+        </div>
 
-          {/* Audio */}
-          <div className="px-3 pb-2">
-            <NodeVoiceNote
-              nodeId={id}
-              audioUrl={data.audio_url ?? null}
-              r2Key={data.r2_key ?? null}
-              onSaved={(nid, url, r2) => data.onRecordingSaved?.(nid, url, r2)}
-              onDeleted={(nid) => data.onAudioDeleted?.(nid)}
-            />
+        {/* Audio */}
+        <div className="px-3 pb-2">
+          <NodeVoiceNote
+            nodeId={id}
+            audioUrl={data.audio_url ?? null}
+            r2Key={data.r2_key ?? null}
+            onSaved={(nid, url, r2) => data.onRecordingSaved?.(nid, url, r2)}
+            onDeleted={(nid) => data.onAudioDeleted?.(nid)}
+          />
+        </div>
+      </div>
+
+      {/* Full-text popup */}
+      {showPopup && typeof document !== "undefined" && createPortal(
+        <div
+          style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}
+          className="bg-black/40 backdrop-blur-sm"
+          onMouseDown={(e) => e.stopPropagation()}
+          onClick={() => setShowPopup(false)}
+        >
+          <div
+            style={{ background: "white", borderRadius: 16, padding: "24px 28px", maxWidth: 520, width: "90vw", maxHeight: "80vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.25)", border: `2px solid ${color}` }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between mb-3 gap-3">
+              <div className="flex items-center gap-2">
+                <div style={{ width: 10, height: 10, borderRadius: "50%", backgroundColor: color, flexShrink: 0 }} />
+                <h3 className="font-bold text-stone-800 text-sm">{title}</h3>
+              </div>
+              <button onClick={() => setShowPopup(false)} className="text-stone-400 hover:text-stone-600 shrink-0">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p style={{ fontSize: fontSize + 1, color: fontColor }} className="leading-relaxed whitespace-pre-wrap text-stone-700">
+              {body}
+            </p>
           </div>
-        </>
+        </div>,
+        document.body
       )}
-    </div>
+    </>
   );
 }
