@@ -4,7 +4,7 @@ import { getTokenFromRequest } from "@/src/lib/auth-request";
 import { verifyToken } from "@/src/lib/auth";
 
 /** 認証不要でアクセス可能なパス */
-const PUBLIC_PATHS = ["/login", "/api/auth/ext-login"];
+const PUBLIC_PATHS = ["/login", "/api/auth/ext-login", "/api/regions"];
 
 function isPublicPath(pathname: string): boolean {
   return PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));

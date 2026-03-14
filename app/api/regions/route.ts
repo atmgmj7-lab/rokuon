@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/src/lib/db";
-import { getSessionFromRequest } from "@/src/lib/auth-request";
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
+
+/** 地域検索は公開データのため認証不要（拡張機能・クロスオリジンから利用） */
 
 const SELECT_COLS =
   "SELECT id, prefecture, city, yomigana, population, search_volume FROM regions";
@@ -87,14 +88,6 @@ export async function OPTIONS() {
 }
 
 export async function GET(request: NextRequest) {
-  const session = await getSessionFromRequest(request);
-  if (!session) {
-    return NextResponse.json(
-      { success: false, error: "認証が必要です" },
-      { status: 401, headers: CORS_HEADERS }
-    );
-  }
-
   try {
     const q = request.nextUrl.searchParams.get("q")?.trim() ?? "";
 

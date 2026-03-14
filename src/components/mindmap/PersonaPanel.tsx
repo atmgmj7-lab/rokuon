@@ -4,41 +4,69 @@ import { X, User, Plus, Trash2 } from "lucide-react";
 
 interface KVEntry { key: string; value: string; }
 
+interface PersonaData {
+  companyName?: string;
+  hp?: string;
+  googleMaps?: string;
+  snsLinks?: string;
+  entries?: KVEntry[];
+}
+
 interface Props {
   mapId: string;
   initialData: string | null;
   onClose: () => void;
 }
 
-function parseEntries(raw: string | null): KVEntry[] {
-  if (!raw) return [];
+function parsePersonaData(raw: string | null): PersonaData {
+  if (!raw) return { entries: [] };
   try {
     const p = JSON.parse(raw) as unknown;
-    if (Array.isArray(p)) return (p as KVEntry[]).filter((e) => typeof e.key === "string");
+    if (Array.isArray(p)) {
+      const entries = (p as KVEntry[]).filter((e) => typeof e.key === "string");
+      return { entries };
+    }
+    if (p && typeof p === "object" && !Array.isArray(p)) {
+      const obj = p as Record<string, unknown>;
+      const entries = Array.isArray(obj.entries)
+        ? (obj.entries as KVEntry[]).filter((e) => typeof e.key === "string")
+        : [];
+      return {
+        companyName: typeof obj.companyName === "string" ? obj.companyName : "",
+        hp: typeof obj.hp === "string" ? obj.hp : "",
+        googleMaps: typeof obj.googleMaps === "string" ? obj.googleMaps : "",
+        snsLinks: typeof obj.snsLinks === "string" ? obj.snsLinks : "",
+        entries,
+      };
+    }
   } catch {}
-  // legacy fixed-field format → convert to KV
   try {
     const obj = JSON.parse(raw) as Record<string, string>;
-    return Object.entries(obj)
-      .filter(([, v]) => v)
-      .map(([k, v]) => ({ key: k, value: v }));
+    const entries = Object.entries(obj).filter(([, v]) => v).map(([k, v]) => ({ key: k, value: v }));
+    return { entries };
   } catch {}
-  return [];
+  return { entries: [] };
+}
+
+function serializePersonaData(data: PersonaData): string {
+  return JSON.stringify(data);
 }
 
 export default function PersonaPanel({ mapId, initialData, onClose }: Props) {
-  const [entries, setEntries] = useState<KVEntry[]>(() => parseEntries(initialData));
+  const [personaData, setPersonaData] = useState<PersonaData>(() => parsePersonaData(initialData));
   const [saving, setSaving] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const persist = (next: KVEntry[]) => {
+  const entries = personaData.entries ?? [];
+
+  const persist = (next: PersonaData) => {
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
       setSaving(true);
       fetch(`/api/mind-maps/${mapId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ persona_data: JSON.stringify(next) }),
+        body: JSON.stringify({ persona_data: serializePersonaData(next) }),
       })
         .catch(() => {})
         .finally(() => setSaving(false));
@@ -47,20 +75,29 @@ export default function PersonaPanel({ mapId, initialData, onClose }: Props) {
 
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
 
+  const updateFixedField = (field: "companyName" | "hp" | "googleMaps" | "snsLinks", value: string) => {
+    const next = { ...personaData, [field]: value };
+    setPersonaData(next);
+    persist(next);
+  };
+
   const update = (index: number, field: "key" | "value", value: string) => {
-    const next = entries.map((e, i) => (i === index ? { ...e, [field]: value } : e));
-    setEntries(next);
+    const nextEntries = entries.map((e, i) => (i === index ? { ...e, [field]: value } : e));
+    const next = { ...personaData, entries: nextEntries };
+    setPersonaData(next);
     persist(next);
   };
 
   const addRow = () => {
-    const next = [...entries, { key: "", value: "" }];
-    setEntries(next);
+    const next = { ...personaData, entries: [...entries, { key: "", value: "" }] };
+    setPersonaData(next);
+    persist(next);
   };
 
   const removeRow = (index: number) => {
-    const next = entries.filter((_, i) => i !== index);
-    setEntries(next);
+    const nextEntries = entries.filter((_, i) => i !== index);
+    const next = { ...personaData, entries: nextEntries };
+    setPersonaData(next);
     persist(next);
   };
 
@@ -80,14 +117,62 @@ export default function PersonaPanel({ mapId, initialData, onClose }: Props) {
         </div>
       </div>
 
-      {/* KV list */}
-      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
-        {entries.length === 0 && (
-          <p className="text-[11px] text-stone-400 italic text-center mt-6">
-            「＋ 項目を追加」で自由に項目を作れます
-          </p>
-        )}
-        {entries.map((entry, i) => (
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto px-4 py-3 space-y-4">
+        {/* 固定URL項目 */}
+        <div className="space-y-2">
+          <p className="text-[9px] font-bold text-stone-400 uppercase tracking-widest mb-1.5">基本情報</p>
+          <div>
+            <label className="block text-[9px] font-medium text-stone-500 mb-0.5">会社名</label>
+            <input
+              type="text"
+              value={personaData.companyName ?? ""}
+              onChange={(e) => updateFixedField("companyName", e.target.value)}
+              placeholder="株式会社〇〇"
+              className="w-full text-[11px] text-stone-700 border border-stone-200 rounded-md px-2 py-1.5 outline-none focus:border-orange-400 bg-white"
+            />
+          </div>
+          <div>
+            <label className="block text-[9px] font-medium text-stone-500 mb-0.5">HP</label>
+            <input
+              type="url"
+              value={personaData.hp ?? ""}
+              onChange={(e) => updateFixedField("hp", e.target.value)}
+              placeholder="https://example.com"
+              className="w-full text-[11px] text-stone-700 border border-stone-200 rounded-md px-2 py-1.5 outline-none focus:border-orange-400 bg-white"
+            />
+          </div>
+          <div>
+            <label className="block text-[9px] font-medium text-stone-500 mb-0.5">Googleマップ</label>
+            <input
+              type="url"
+              value={personaData.googleMaps ?? ""}
+              onChange={(e) => updateFixedField("googleMaps", e.target.value)}
+              placeholder="https://maps.google.com/..."
+              className="w-full text-[11px] text-stone-700 border border-stone-200 rounded-md px-2 py-1.5 outline-none focus:border-orange-400 bg-white"
+            />
+          </div>
+          <div>
+            <label className="block text-[9px] font-medium text-stone-500 mb-0.5">SNSリンク</label>
+            <input
+              type="url"
+              value={personaData.snsLinks ?? ""}
+              onChange={(e) => updateFixedField("snsLinks", e.target.value)}
+              placeholder="https://facebook.com/... など"
+              className="w-full text-[11px] text-stone-700 border border-stone-200 rounded-md px-2 py-1.5 outline-none focus:border-orange-400 bg-white"
+            />
+          </div>
+        </div>
+
+        {/* 項目名・内容（動的追加） */}
+        <div className="space-y-2">
+          <p className="text-[9px] font-bold text-stone-400 uppercase tracking-widest mb-1.5">その他項目</p>
+          {entries.length === 0 && (
+            <p className="text-[11px] text-stone-400 italic text-center py-2">
+              「＋ 項目を追加」で自由に項目を作れます
+            </p>
+          )}
+          {entries.map((entry, i) => (
           <div key={i} className="flex items-start gap-1.5 group">
             <div className="flex flex-col gap-1 flex-1 min-w-0">
               <input
@@ -113,6 +198,7 @@ export default function PersonaPanel({ mapId, initialData, onClose }: Props) {
             </button>
           </div>
         ))}
+        </div>
       </div>
 
       {/* Add row */}

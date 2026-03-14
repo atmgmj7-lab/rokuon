@@ -46,17 +46,46 @@ export interface NodeStyleUpdates {
 // ── persona types ───────────────────────────────────────────────────────────
 interface KVEntry { key: string; value: string; }
 
-function parseEntries(raw: string | null): KVEntry[] {
-  if (!raw) return [];
+interface PersonaData {
+  companyName?: string;
+  hp?: string;
+  googleMaps?: string;
+  snsLinks?: string;
+  entries?: KVEntry[];
+}
+
+function parsePersonaData(raw: string | null): PersonaData {
+  if (!raw) return { entries: [] };
   try {
     const p = JSON.parse(raw) as unknown;
-    if (Array.isArray(p)) return (p as KVEntry[]).filter((e) => typeof e.key === "string");
+    if (Array.isArray(p)) {
+      const entries = (p as KVEntry[]).filter((e) => typeof e.key === "string");
+      return { entries };
+    }
+    if (p && typeof p === "object" && !Array.isArray(p)) {
+      const obj = p as Record<string, unknown>;
+      const entries = Array.isArray(obj.entries)
+        ? (obj.entries as KVEntry[]).filter((e) => typeof e.key === "string")
+        : [];
+      return {
+        companyName: typeof obj.companyName === "string" ? obj.companyName : "",
+        hp: typeof obj.hp === "string" ? obj.hp : "",
+        googleMaps: typeof obj.googleMaps === "string" ? obj.googleMaps : "",
+        snsLinks: typeof obj.snsLinks === "string" ? obj.snsLinks : "",
+        entries,
+      };
+    }
   } catch {}
   try {
     const obj = JSON.parse(raw) as Record<string, string>;
-    return Object.entries(obj).filter(([, v]) => v).map(([k, v]) => ({ key: k, value: v }));
+    const entries = Object.entries(obj).filter(([, v]) => v).map(([k, v]) => ({ key: k, value: v }));
+    return { entries };
   } catch {}
-  return [];
+  return { entries: [] };
+}
+
+function serializePersonaData(data: PersonaData): string {
+  return JSON.stringify(data);
 }
 
 // ── section header helper ───────────────────────────────────────────────────
@@ -101,10 +130,12 @@ type TabType = "persona" | "design";
 export default function RightPanel({
   mapId, initialPersonaData, selectedNode, onNodeStyleUpdate, onClose,
 }: Props) {
-  const [tab,     setTab]     = useState<TabType>("persona");
-  const [saving,  setSaving]  = useState(false);
-  const [entries, setEntries] = useState<KVEntry[]>(() => parseEntries(initialPersonaData));
+  const [tab,         setTab]         = useState<TabType>("persona");
+  const [saving,      setSaving]      = useState(false);
+  const [personaData, setPersonaData] = useState<PersonaData>(() => parsePersonaData(initialPersonaData));
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const entries = personaData.entries ?? [];
 
   // Auto-switch to Design tab when a node gets selected
   useEffect(() => {
@@ -113,29 +144,41 @@ export default function RightPanel({
   }, [selectedNode?.id]);
 
   // ── persona debounced save ──────────────────────────────────────────────
-  const persistPersona = (next: KVEntry[]) => {
+  const persistPersona = (next: PersonaData) => {
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
       setSaving(true);
       fetch(`/api/mind-maps/${mapId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ persona_data: JSON.stringify(next) }),
+        body: JSON.stringify({ persona_data: serializePersonaData(next) }),
       }).catch(() => {}).finally(() => setSaving(false));
     }, 1200);
   };
 
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
 
-  const updateEntry = (i: number, field: "key" | "value", value: string) => {
-    const next = entries.map((e, idx) => idx === i ? { ...e, [field]: value } : e);
-    setEntries(next);
+  const updateFixedField = (field: "companyName" | "hp" | "googleMaps" | "snsLinks", value: string) => {
+    const next = { ...personaData, [field]: value };
+    setPersonaData(next);
     persistPersona(next);
   };
-  const addEntry    = () => { setEntries((prev) => [...prev, { key: "", value: "" }]); };
+
+  const updateEntry = (i: number, field: "key" | "value", value: string) => {
+    const nextEntries = entries.map((e, idx) => idx === i ? { ...e, [field]: value } : e);
+    const next = { ...personaData, entries: nextEntries };
+    setPersonaData(next);
+    persistPersona(next);
+  };
+  const addEntry = () => {
+    const next = { ...personaData, entries: [...entries, { key: "", value: "" }] };
+    setPersonaData(next);
+    persistPersona(next);
+  };
   const removeEntry = (i: number) => {
-    const next = entries.filter((_, idx) => idx !== i);
-    setEntries(next);
+    const nextEntries = entries.filter((_, idx) => idx !== i);
+    const next = { ...personaData, entries: nextEntries };
+    setPersonaData(next);
     persistPersona(next);
   };
 
@@ -189,12 +232,60 @@ export default function RightPanel({
       {/* ── Persona tab ─────────────────────────────────────────────────── */}
       {tab === "persona" && (
         <>
-          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-2">
-            {entries.length === 0 && (
-              <p className="text-[11px] text-stone-400 italic text-center mt-6">
-                「＋ 項目を追加」で自由に項目を作れます
-              </p>
-            )}
+          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+            {/* 固定URL項目 */}
+            <div className="space-y-2">
+              <SectionLabel>基本情報</SectionLabel>
+              <div>
+                <label className="block text-[9px] font-medium text-stone-500 mb-0.5">会社名</label>
+                <input
+                  type="text"
+                  value={personaData.companyName ?? ""}
+                  onChange={(e) => updateFixedField("companyName", e.target.value)}
+                  placeholder="株式会社〇〇"
+                  className="w-full text-[11px] text-stone-700 border border-stone-200 rounded-md px-2 py-1.5 outline-none focus:border-orange-400 bg-white"
+                />
+              </div>
+              <div>
+                <label className="block text-[9px] font-medium text-stone-500 mb-0.5">HP</label>
+                <input
+                  type="url"
+                  value={personaData.hp ?? ""}
+                  onChange={(e) => updateFixedField("hp", e.target.value)}
+                  placeholder="https://example.com"
+                  className="w-full text-[11px] text-stone-700 border border-stone-200 rounded-md px-2 py-1.5 outline-none focus:border-orange-400 bg-white"
+                />
+              </div>
+              <div>
+                <label className="block text-[9px] font-medium text-stone-500 mb-0.5">Googleマップ</label>
+                <input
+                  type="url"
+                  value={personaData.googleMaps ?? ""}
+                  onChange={(e) => updateFixedField("googleMaps", e.target.value)}
+                  placeholder="https://maps.google.com/..."
+                  className="w-full text-[11px] text-stone-700 border border-stone-200 rounded-md px-2 py-1.5 outline-none focus:border-orange-400 bg-white"
+                />
+              </div>
+              <div>
+                <label className="block text-[9px] font-medium text-stone-500 mb-0.5">SNSリンク</label>
+                <input
+                  type="url"
+                  value={personaData.snsLinks ?? ""}
+                  onChange={(e) => updateFixedField("snsLinks", e.target.value)}
+                  placeholder="https://facebook.com/... など"
+                  className="w-full text-[11px] text-stone-700 border border-stone-200 rounded-md px-2 py-1.5 outline-none focus:border-orange-400 bg-white"
+                />
+              </div>
+            </div>
+
+            {/* 項目名・内容（動的追加） */}
+            <div className="space-y-2">
+              <SectionLabel>その他項目</SectionLabel>
+              {entries.length === 0 && (
+                <p className="text-[11px] text-stone-400 italic text-center py-2">
+                  「＋ 項目を追加」で自由に項目を作れます
+                </p>
+              )}
             {entries.map((entry, i) => (
               <div key={i} className="flex items-start gap-1.5 group">
                 <div className="flex flex-col gap-1 flex-1 min-w-0">
@@ -221,6 +312,7 @@ export default function RightPanel({
                 </button>
               </div>
             ))}
+            </div>
           </div>
 
           <div className="px-4 pb-3">
