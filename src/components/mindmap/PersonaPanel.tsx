@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { X, User, Plus, Trash2 } from "lucide-react";
+import { ChevronDown, X, User, Plus, Trash2 } from "lucide-react";
 
 interface KVEntry { key: string; value: string; }
 
@@ -55,6 +55,7 @@ function serializePersonaData(data: PersonaData): string {
 export default function PersonaPanel({ mapId, initialData, onClose }: Props) {
   const [personaData, setPersonaData] = useState<PersonaData>(() => parsePersonaData(initialData));
   const [saving, setSaving] = useState(false);
+  const [closedEntries, setClosedEntries] = useState<Set<number>>(new Set());
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const entries = personaData.entries ?? [];
@@ -94,8 +95,27 @@ export default function PersonaPanel({ mapId, initialData, onClose }: Props) {
     persist(next);
   };
 
-  const removeRow = (index: number) => {
-    const nextEntries = entries.filter((_, i) => i !== index);
+  const toggleEntry = (i: number) => {
+    setClosedEntries((s) => {
+      const next = new Set(s);
+      if (next.has(i)) next.delete(i);
+      else next.add(i);
+      return next;
+    });
+  };
+
+  const isEntryOpen = (i: number) => !closedEntries.has(i);
+
+  const removeRow = (i: number) => {
+    setClosedEntries((s) => {
+      const next = new Set<number>();
+      s.forEach((j) => {
+        if (j < i) next.add(j);
+        else if (j > i) next.add(j - 1);
+      });
+      return next;
+    });
+    const nextEntries = entries.filter((_, idx) => idx !== i);
     const next = { ...personaData, entries: nextEntries };
     setPersonaData(next);
     persist(next);
@@ -164,40 +184,64 @@ export default function PersonaPanel({ mapId, initialData, onClose }: Props) {
           </div>
         </div>
 
-        {/* 項目名・内容（動的追加） */}
+        {/* 項目名・内容（動的追加）項目ごとにアコーディオン */}
         <div className="space-y-2">
           <p className="text-[9px] font-bold text-stone-400 uppercase tracking-widest mb-1.5">その他項目</p>
-          {entries.length === 0 && (
+          {entries.length === 0 ? (
             <p className="text-[11px] text-stone-400 italic text-center py-2">
               「＋ 項目を追加」で自由に項目を作れます
             </p>
+          ) : (
+            entries.map((entry, i) => (
+              <div key={i} className="border border-stone-200 rounded-lg overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => toggleEntry(i)}
+                  className="w-full flex items-center justify-between gap-2 py-2 px-3 bg-stone-50 hover:bg-stone-100 transition-colors text-left group/btn"
+                >
+                  <span className="text-[11px] font-semibold text-stone-600 truncate flex-1 text-left">
+                    {entry.key || "（項目名未入力）"}
+                  </span>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); removeRow(i); }}
+                      className="opacity-0 group-hover/btn:opacity-100 text-stone-300 hover:text-red-400 transition-opacity p-0.5"
+                      title="削除"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                    <ChevronDown
+                      className={`w-3.5 h-3.5 text-stone-500 transition-transform ${isEntryOpen(i) ? "rotate-180" : ""}`}
+                    />
+                  </div>
+                </button>
+                {isEntryOpen(i) && (
+                  <div className="px-3 pb-3 pt-1 space-y-2 border-t border-stone-100">
+                    <div>
+                      <label className="block text-[9px] font-medium text-stone-500 mb-0.5">項目名</label>
+                      <input
+                        type="text"
+                        value={entry.key}
+                        onChange={(e) => update(i, "key", e.target.value)}
+                        placeholder="項目名"
+                        className="w-full text-[11px] font-semibold text-stone-600 border border-stone-200 rounded-md px-2 py-1 outline-none focus:border-orange-400 bg-stone-50"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[9px] font-medium text-stone-500 mb-0.5">内容</label>
+                      <textarea
+                        value={entry.value}
+                        onChange={(e) => update(i, "value", e.target.value)}
+                        placeholder="内容"
+                        rows={2}
+                        className="w-full text-[12px] text-stone-700 border border-stone-200 rounded-md px-2 py-1 outline-none focus:border-orange-400 resize-none bg-white leading-relaxed"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))
           )}
-          {entries.map((entry, i) => (
-          <div key={i} className="flex items-start gap-1.5 group">
-            <div className="flex flex-col gap-1 flex-1 min-w-0">
-              <input
-                type="text"
-                value={entry.key}
-                onChange={(e) => update(i, "key", e.target.value)}
-                placeholder="項目名"
-                className="w-full text-[11px] font-semibold text-stone-600 border border-stone-200 rounded-md px-2 py-1 outline-none focus:border-orange-400 bg-stone-50"
-              />
-              <textarea
-                value={entry.value}
-                onChange={(e) => update(i, "value", e.target.value)}
-                placeholder="内容"
-                rows={2}
-                className="w-full text-[12px] text-stone-700 border border-stone-200 rounded-md px-2 py-1 outline-none focus:border-orange-400 resize-none bg-white leading-relaxed"
-              />
-            </div>
-            <button
-              onClick={() => removeRow(i)}
-              className="mt-1 text-stone-300 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        ))}
         </div>
       </div>
 
