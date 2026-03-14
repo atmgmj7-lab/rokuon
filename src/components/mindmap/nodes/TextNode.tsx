@@ -3,9 +3,9 @@ import { Handle, Position, NodeProps, NodeResizer } from "reactflow";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import NodeVoiceNote from "./NodeVoiceNote";
+import NodeRichTextEditor from "./NodeRichTextEditor";
+import NodeRichTextView from "./NodeRichTextView";
 import { Type, X, Maximize2 } from "lucide-react";
-
-const TRUNCATE = 100;
 
 interface ContentData { body: string; }
 
@@ -48,8 +48,8 @@ export default function TextNode({ id, data, selected }: NodeProps<TextNodeData>
   const fontSize    = data.fontSize    ?? 12;
   const fontColor   = data.fontColor   ?? "#374151";
 
-  const isTruncated  = body.length > TRUNCATE;
-  const displayBody  = isTruncated ? body.slice(0, TRUNCATE) + "…" : body;
+  const plainBody = body.replace(/<[^>]+>/g, "").trim();
+  const hasContent = plainBody.length > 0;
 
   const commitTitle = () => {
     setEditTitle(false);
@@ -104,38 +104,43 @@ export default function TextNode({ id, data, selected }: NodeProps<TextNodeData>
               onDoubleClick={() => setEditTitle(true)}
             >{title}</span>
           )}
+          {hasContent && (
+            <button
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); setShowPopup(true); }}
+              className="nodrag shrink-0 inline-flex items-center gap-0.5 px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 text-white text-[10px] font-medium transition-colors"
+              title="全文を見る"
+            >
+              <Maximize2 className="w-2.5 h-2.5" /> 全文
+            </button>
+          )}
         </div>
 
         {/* Body */}
         <div style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column" }} className="px-3 pt-2 pb-1">
           {editBody ? (
-            <textarea
-              autoFocus value={body}
-              onChange={(e) => setBody(e.target.value)}
-              onBlur={() => commitBody()}
-              onMouseDown={(e) => e.stopPropagation()}
-              style={{ flex: 1, minHeight: 48, resize: "none", background: "transparent", fontSize, color: fontColor }}
-              className="nodrag w-full outline-none leading-relaxed"
+            <NodeRichTextEditor
+              value={body}
+              onChange={(html) => setBody(html)}
+              onBlur={(html) => commitBody(html ?? body)}
+              placeholder="ダブルクリックで入力…"
+              defaultFontSize={fontSize}
+              defaultFontColor={fontColor}
+              minHeight={48}
             />
           ) : (
-            <div style={{ flex: 1 }}>
-              <p
-                className="nodrag leading-relaxed whitespace-pre-wrap"
-                style={{ fontSize, color: fontColor, cursor: "text" }}
-                onDoubleClick={() => setEditBody(true)}
-              >
-                {displayBody || (
-                  <span className="text-stone-300 italic text-[11px]">ダブルクリックで入力…</span>
-                )}
-              </p>
-              {isTruncated && (
-                <button
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => { e.stopPropagation(); setShowPopup(true); }}
-                  className="nodrag mt-1 inline-flex items-center gap-0.5 text-[10px] text-stone-400 hover:text-orange-500 transition-colors"
-                >
-                  <Maximize2 className="w-2.5 h-2.5" /> 全文を見る
-                </button>
+            <div
+              style={{ flex: 1 }}
+              className="nodrag leading-relaxed whitespace-pre-wrap cursor-text"
+              onDoubleClick={() => setEditBody(true)}
+            >
+              <NodeRichTextView
+                html={body}
+                defaultFontSize={fontSize}
+                defaultFontColor={fontColor}
+              />
+              {!hasContent && (
+                <span className="text-stone-300 italic text-[11px]">ダブルクリックで入力…</span>
               )}
             </div>
           )}
@@ -174,9 +179,9 @@ export default function TextNode({ id, data, selected }: NodeProps<TextNodeData>
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <p style={{ fontSize: fontSize + 1, color: fontColor }} className="leading-relaxed whitespace-pre-wrap text-stone-700">
-              {body}
-            </p>
+            <div style={{ fontSize: fontSize + 1, color: fontColor }} className="leading-relaxed whitespace-pre-wrap text-stone-700">
+              <NodeRichTextView html={body} defaultFontSize={fontSize + 1} defaultFontColor={fontColor} />
+            </div>
           </div>
         </div>,
         document.body

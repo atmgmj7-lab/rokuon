@@ -3,9 +3,9 @@ import { NodeProps, NodeResizer } from "reactflow";
 import { useState } from "react";
 import { createPortal } from "react-dom";
 import NodeVoiceNote from "./NodeVoiceNote";
+import NodeRichTextEditor from "./NodeRichTextEditor";
+import NodeRichTextView from "./NodeRichTextView";
 import { Maximize2, MessageSquare, X } from "lucide-react";
-
-const TRUNCATE = 100;
 
 export interface CommentNodeData {
   label: string;
@@ -36,12 +36,13 @@ export default function CommentNode({ id, data, selected }: NodeProps<CommentNod
 
   const borderRadius = shape === "rect" ? 0 : 12;
   const isBubble     = shape === "bubble";
-  const isTruncated  = text.length > TRUNCATE;
-  const displayText  = isTruncated ? text.slice(0, TRUNCATE) + "…" : text;
+  const plainText    = text.replace(/<[^>]+>/g, "").trim();
+  const hasContent   = plainText.length > 0;
 
   const commit = (t = text) => {
     setEditing(false);
-    data.onLabelChange?.(id, t);
+    if (t !== undefined) setText(t);
+    data.onLabelChange?.(id, t ?? text);
   };
 
   return (
@@ -69,50 +70,56 @@ export default function CommentNode({ id, data, selected }: NodeProps<CommentNod
           }}
         >
           {editing ? (
-            <textarea
-              autoFocus value={text}
-              onChange={(e) => setText(e.target.value)}
-              onBlur={() => commit()}
-              onKeyDown={(e) => { if (e.key === "Escape") setEditing(false); }}
-              onMouseDown={(e) => e.stopPropagation()}
-              style={{ flex: 1, minHeight: 32, resize: "none", background: "transparent", fontSize, color: fontColor, outline: "none", border: "none", fontFamily: "inherit", lineHeight: 1.6 }}
-              className="nodrag w-full"
+            <NodeRichTextEditor
+              value={text}
+              onChange={(html) => setText(html)}
+              onBlur={(html) => commit(html ?? text)}
+              placeholder="ダブルクリックで入力…"
+              defaultFontSize={fontSize}
+              defaultFontColor={fontColor}
+              minHeight={32}
             />
           ) : (
-            <div style={{ flex: 1 }}>
-              <p
-                className="nodrag whitespace-pre-wrap"
-                style={{ fontSize, color: fontColor, lineHeight: 1.6, cursor: "text", minHeight: 20 }}
-                onDoubleClick={() => setEditing(true)}
-              >
-                {displayText || (
-                  <span style={{ color: "#9CA3AF", fontStyle: "italic", fontSize: 11 }}>
-                    {selected ? "ダブルクリックで入力…" : ""}
-                  </span>
-                )}
-              </p>
-              {isTruncated && (
-                <button
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => { e.stopPropagation(); setShowPopup(true); }}
-                  className="nodrag mt-1 inline-flex items-center gap-0.5 text-[10px] text-stone-400 hover:text-amber-500 transition-colors"
-                >
-                  <Maximize2 className="w-2.5 h-2.5" /> 全文を見る
-                </button>
+            <div
+              style={{ flex: 1, lineHeight: 1.6, minHeight: 20 }}
+              className="nodrag whitespace-pre-wrap cursor-text"
+              onDoubleClick={() => setEditing(true)}
+            >
+              <NodeRichTextView
+                html={text}
+                defaultFontSize={fontSize}
+                defaultFontColor={fontColor}
+              />
+              {!hasContent && selected && (
+                <span style={{ color: "#9CA3AF", fontStyle: "italic", fontSize: 11 }}>
+                  ダブルクリックで入力…
+                </span>
               )}
             </div>
           )}
 
-          {selected && (
-            <NodeVoiceNote
-              nodeId={id}
-              audioUrl={data.audio_url ?? null}
-              r2Key={data.r2_key ?? null}
-              onSaved={(nid, url, r2) => data.onRecordingSaved?.(nid, url, r2)}
-              onDeleted={(nid) => data.onAudioDeleted?.(nid)}
-            />
-          )}
-        </div>
+          {/* 全文を見る + 録音（常時表示・サイズ変更で隠れない） */}
+          <div className="flex items-center gap-2 flex-wrap shrink-0 pt-1">
+            {hasContent && (
+              <button
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => { e.stopPropagation(); setShowPopup(true); }}
+                className="nodrag inline-flex items-center gap-0.5 px-2 py-0.5 rounded bg-amber-100 hover:bg-amber-200 text-amber-800 text-[10px] font-medium transition-colors"
+                title="全文を見る"
+              >
+                <Maximize2 className="w-2.5 h-2.5" /> 全文を見る
+              </button>
+            )}
+            {selected && (
+              <NodeVoiceNote
+                nodeId={id}
+                audioUrl={data.audio_url ?? null}
+                r2Key={data.r2_key ?? null}
+                onSaved={(nid, url, r2) => data.onRecordingSaved?.(nid, url, r2)}
+                onDeleted={(nid) => data.onAudioDeleted?.(nid)}
+              />
+            )}
+          </div>
 
         {/* Bubble tail */}
         {isBubble && (
@@ -121,36 +128,39 @@ export default function CommentNode({ id, data, selected }: NodeProps<CommentNod
             <div style={{ position: "absolute", bottom: -(borderWidth + 8), left: 22, borderLeft: "8px solid transparent", borderRight: "8px solid transparent", borderTop: `9px solid ${bgColor}`, width: 0, height: 0 }} />
           </>
         )}
+        </div>
       </div>
 
       {/* Full-text popup */}
-      {showPopup && typeof document !== "undefined" && createPortal(
-        <div
-          style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}
-          className="bg-black/40 backdrop-blur-sm"
-          onMouseDown={(e) => e.stopPropagation()}
-          onClick={() => setShowPopup(false)}
-        >
-          <div
-            style={{ background: "white", borderRadius: 16, padding: "24px 28px", maxWidth: 520, width: "90vw", maxHeight: "80vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.25)", border: `2px solid ${color}` }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-start justify-between mb-3 gap-3">
-              <div className="flex items-center gap-2">
-                <MessageSquare style={{ color, width: 14, height: 14, flexShrink: 0 }} />
-                <h3 className="font-bold text-stone-600 text-sm">コメント</h3>
+      {showPopup && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              style={{ position: "fixed", inset: 0, zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}
+              className="bg-black/40 backdrop-blur-sm"
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={() => setShowPopup(false)}
+            >
+              <div
+                style={{ background: "white", borderRadius: 16, padding: "24px 28px", maxWidth: 520, width: "90vw", maxHeight: "80vh", overflow: "auto", boxShadow: "0 20px 60px rgba(0,0,0,0.25)", border: `2px solid ${color}` }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-start justify-between mb-3 gap-3">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare style={{ color, width: 14, height: 14, flexShrink: 0 }} />
+                    <h3 className="font-bold text-stone-600 text-sm">コメント</h3>
+                  </div>
+                  <button onClick={() => setShowPopup(false)} className="text-stone-400 hover:text-stone-600 shrink-0">
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+                <div style={{ fontSize: fontSize + 1, color: fontColor }} className="leading-relaxed whitespace-pre-wrap">
+                  <NodeRichTextView html={text} defaultFontSize={fontSize + 1} defaultFontColor={fontColor} />
+                </div>
               </div>
-              <button onClick={() => setShowPopup(false)} className="text-stone-400 hover:text-stone-600 shrink-0">
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-            <p style={{ fontSize: fontSize + 1, color: fontColor }} className="leading-relaxed whitespace-pre-wrap">
-              {text}
-            </p>
-          </div>
-        </div>,
-        document.body
-      )}
+            </div>,
+            document.body
+          )
+        : null}
     </>
   );
 }
