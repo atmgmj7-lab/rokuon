@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import NodeVoiceNote from "./NodeVoiceNote";
 import NodeRichTextEditor from "./NodeRichTextEditor";
 import NodeRichTextView from "./NodeRichTextView";
+import NodeBodyWithEllipsis from "./NodeBodyWithEllipsis";
 import { Maximize2, MessageSquare, X } from "lucide-react";
 
 export interface CommentNodeData {
@@ -80,8 +81,8 @@ export default function CommentNode({ id, data, selected }: NodeProps<CommentNod
               minHeight={32}
             />
           ) : (
-            <div
-              style={{ flex: 1, lineHeight: 1.6, minHeight: 20 }}
+            <NodeBodyWithEllipsis
+              style={{ lineHeight: 1.6, minHeight: 20 }}
               className="nodrag whitespace-pre-wrap cursor-text"
               onDoubleClick={() => setEditing(true)}
             >
@@ -95,7 +96,7 @@ export default function CommentNode({ id, data, selected }: NodeProps<CommentNod
                   ダブルクリックで入力…
                 </span>
               )}
-            </div>
+            </NodeBodyWithEllipsis>
           )}
 
           {/* 全文を見る + 録音（常時表示・サイズ変更で隠れない） */}

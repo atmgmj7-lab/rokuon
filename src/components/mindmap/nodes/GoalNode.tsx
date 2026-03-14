@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import NodeVoiceNote from "./NodeVoiceNote";
 import NodeRichTextEditor from "./NodeRichTextEditor";
 import NodeRichTextView from "./NodeRichTextView";
+import NodeBodyWithEllipsis from "./NodeBodyWithEllipsis";
 import { Maximize2, Target, X } from "lucide-react";
 
 interface ContentData { body: string; }
@@ -120,7 +121,7 @@ export default function GoalNode({ id, data, selected }: NodeProps<GoalNodeData>
         </div>
 
         {/* Body */}
-        <div style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column" }} className="px-3 pt-2 pb-1">
+        <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }} className="px-3 pt-2 pb-1">
           {editBody ? (
             <NodeRichTextEditor
               value={body}
@@ -132,8 +133,7 @@ export default function GoalNode({ id, data, selected }: NodeProps<GoalNodeData>
               minHeight={48}
             />
           ) : (
-            <div
-              style={{ flex: 1 }}
+            <NodeBodyWithEllipsis
               className="nodrag leading-relaxed whitespace-pre-wrap cursor-text"
               onDoubleClick={() => setEditBody(true)}
             >
@@ -145,7 +145,7 @@ export default function GoalNode({ id, data, selected }: NodeProps<GoalNodeData>
               {!hasContent && (
                 <span className="text-stone-300 italic text-[11px]">ダブルクリックで内容を入力…</span>
               )}
-            </div>
+            </NodeBodyWithEllipsis>
           )}
         </div>
 

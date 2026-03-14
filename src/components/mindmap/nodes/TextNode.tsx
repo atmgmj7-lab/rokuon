@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import NodeVoiceNote from "./NodeVoiceNote";
 import NodeRichTextEditor from "./NodeRichTextEditor";
 import NodeRichTextView from "./NodeRichTextView";
+import NodeBodyWithEllipsis from "./NodeBodyWithEllipsis";
 import { Type, X, Maximize2 } from "lucide-react";
 
 interface ContentData { body: string; }
@@ -117,7 +118,7 @@ export default function TextNode({ id, data, selected }: NodeProps<TextNodeData>
         </div>
 
         {/* Body */}
-        <div style={{ flex: 1, overflow: "auto", display: "flex", flexDirection: "column" }} className="px-3 pt-2 pb-1">
+        <div style={{ flex: 1, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }} className="px-3 pt-2 pb-1">
           {editBody ? (
             <NodeRichTextEditor
               value={body}
@@ -129,20 +130,19 @@ export default function TextNode({ id, data, selected }: NodeProps<TextNodeData>
               minHeight={48}
             />
           ) : (
-            <div
-              style={{ flex: 1 }}
+            <NodeBodyWithEllipsis
               className="nodrag leading-relaxed whitespace-pre-wrap cursor-text"
               onDoubleClick={() => setEditBody(true)}
             >
               <NodeRichTextView
-                html={body}
-                defaultFontSize={fontSize}
-                defaultFontColor={fontColor}
-              />
+                  html={body}
+                  defaultFontSize={fontSize}
+                  defaultFontColor={fontColor}
+                />
               {!hasContent && (
                 <span className="text-stone-300 italic text-[11px]">ダブルクリックで入力…</span>
               )}
-            </div>
+            </NodeBodyWithEllipsis>
           )}
         </div>
 
